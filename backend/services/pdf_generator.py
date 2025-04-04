@@ -303,31 +303,37 @@ def extract_structured_content(html_content):
             heading_match = re.search(r'<h2>(.*?)</h2>', section_content, re.DOTALL | re.IGNORECASE)
             if heading_match:
                 section['heading'] = clean_text_for_reportlab(heading_match.group(1))
+                print(f"Found section: {section['heading']}")
 
             # Check if this is an Experience section
             if section['heading'] and ('experience' in section['heading'].lower() or 'work' in section['heading'].lower()):
                 # Try to extract structured experience items
                 experience_items = extract_experience_items(section_content)
                 if experience_items:
+                    print(f"Found {len(experience_items)} experience items")
                     section['content'].append({
                         'type': 'experience',
                         'items': experience_items
                     })
                 else:
                     # Fall back to regular paragraph and list extraction
+                    print("No structured experience items found, falling back to paragraphs and lists")
                     extract_paragraphs_and_lists(section_content, section)
 
             # Check if this is an Education section
             elif section['heading'] and 'education' in section['heading'].lower():
+                print("Processing Education section")
                 # Try to extract structured education items
                 education_items = extract_education_items(section_content)
                 if education_items:
+                    print(f"Found {len(education_items)} education items")
                     section['content'].append({
                         'type': 'education',
                         'items': education_items
                     })
                 else:
                     # Fall back to regular paragraph and list extraction
+                    print("No structured education items found, falling back to paragraphs and lists")
                     extract_paragraphs_and_lists(section_content, section)
 
             # Check if this is a Skills section
@@ -335,22 +341,28 @@ def extract_structured_content(html_content):
                 # Try to extract structured skills
                 skill_groups = extract_skills(section_content)
                 if skill_groups:
+                    print(f"Found {len(skill_groups)} skill groups")
                     section['content'].append({
                         'type': 'skills',
                         'groups': skill_groups
                     })
                 else:
                     # Fall back to regular paragraph and list extraction
+                    print("No structured skill groups found, falling back to paragraphs and lists")
                     extract_paragraphs_and_lists(section_content, section)
 
             # For other sections, extract paragraphs and lists
             else:
+                print(f"Processing generic section: {section['heading']}")
                 extract_paragraphs_and_lists(section_content, section)
 
             if section['heading'] or section['content']:
                 result['sections'].append(section)
+                print(f"Added section: {section['heading']} with {len(section['content'])} content items")
 
     except Exception as e:
+        print(f"Error parsing HTML: {str(e)}")
+        traceback.print_exc()
         # If there's an error in parsing, create a simple section with the error
         result['sections'] = [{
             'heading': 'Resume Content',
@@ -516,9 +528,14 @@ def extract_education_items(section_content):
     # Remove the section heading
     section_content = re.sub(r'<h2>.*?</h2>', '', section_content, flags=re.DOTALL | re.IGNORECASE)
 
-    # Try to find education entries
-    # Look for patterns like:
-    # <p><strong>Degree</strong>, <strong>Institution</strong>, Location, Date</p>
+    # Print the section content for debugging
+    print(f"Education section content: {section_content[:200]}...")
+
+    # Try to find education entries with different patterns
+
+    # Pattern 1: <p><strong>Degree</strong>, <strong>Institution</strong>, Location, Date</p>
+    # Pattern 2: <p><strong>Degree</strong> at <strong>Institution</strong>, Location | Date</p>
+    # Pattern 3: <p><strong>Institution</strong> - <strong>Degree</strong>, Location, Date</p>
 
     # First, try to find entries with strong tags
     edu_entries = re.finditer(r'<p>(?:.*?<strong>(.*?)</strong>.*?(?:<strong>(.*?)</strong>)?.*?)</p>',
@@ -526,6 +543,7 @@ def extract_education_items(section_content):
 
     for entry in edu_entries:
         full_entry = entry.group(0)
+        print(f"Found education entry: {full_entry}")
 
         # Extract degree (first strong tag)
         degree = clean_text_for_reportlab(entry.group(1)) if entry.group(1) else ""
@@ -535,25 +553,44 @@ def extract_education_items(section_content):
 
         # If no institution found but there's a degree, try to extract institution from the text
         if degree and not institution:
+            # Look for "at [Institution]" pattern
             inst_match = re.search(r'at\s+(.*?)(?:,|\||\(|$)', full_entry, re.IGNORECASE)
             if inst_match:
                 institution = clean_text_for_reportlab(inst_match.group(1))
+            else:
+                # Look for institution after degree and comma
+                inst_match = re.search(r'<strong>.*?</strong>(?:,|\s+at|\s+-)\s+(.*?)(?:,|\|)', full_entry, re.IGNORECASE)
+                if inst_match:
+                    institution = clean_text_for_reportlab(inst_match.group(1))
+
+        # If we have institution but no degree, they might be reversed
+        if institution and not degree:
+            # Check if what we think is institution might actually be degree
+            if any(keyword in institution.lower() for keyword in ['bachelor', 'master', 'phd', 'doctorate', 'certificate', 'diploma']):
+                degree, institution = institution, ""
 
         # Extract location and date
         location = ""
         date = ""
 
         # Look for location
-        location_match = re.search(r'(?:,|\|)\s*([^,|]+(?:City|Town|Village|County|State|Province|Country|Region))',
+        location_match = re.search(r'(?:,|\|)\s*([^,|]+(?:City|Town|Village|County|State|Province|Country|Region|University))',
                                   full_entry, re.IGNORECASE)
         if location_match:
             location = clean_text_for_reportlab(location_match.group(1))
 
-        # Look for date
-        date_match = re.search(r'(?:,|\|)\s*(\d{4}\s*(?:-|–|to)\s*(?:\d{4}|Present|Current))',
-                              full_entry, re.IGNORECASE)
-        if date_match:
-            date = clean_text_for_reportlab(date_match.group(1))
+        # Look for date with various formats
+        date_patterns = [
+            r'(?:,|\|)\s*(\d{4}\s*(?:-|–|to)\s*(?:\d{4}|Present|Current))',  # 2018-2022 or 2018-Present
+            r'(?:,|\|)\s*(\d{4})',  # Just year: 2022
+            r'(?:,|\|)\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})'  # Month Year: May 2022
+        ]
+
+        for pattern in date_patterns:
+            date_match = re.search(pattern, full_entry, re.IGNORECASE)
+            if date_match:
+                date = clean_text_for_reportlab(date_match.group(1))
+                break
 
         # Extract additional details
         details = ""
@@ -574,13 +611,82 @@ def extract_education_items(section_content):
 
         # Create education item
         if degree or institution:
-            education_items.append({
+            edu_item = {
                 'degree': degree,
                 'institution': institution,
                 'location': location,
                 'date': date,
                 'details': details
-            })
+            }
+            print(f"Adding education item: {edu_item}")
+            education_items.append(edu_item)
+
+    # If no education items found with the above method, try a simpler approach
+    if not education_items:
+        print("No education items found with structured approach, trying simpler method")
+        # Look for paragraphs that might contain education information
+        p_tags = re.finditer(r'<p>(.*?)</p>', section_content, re.DOTALL | re.IGNORECASE)
+
+        for p in p_tags:
+            p_content = p.group(1)
+            # Skip if this is likely not an education entry
+            if not re.search(r'(degree|university|college|school|education|bachelor|master|phd|diploma)',
+                            p_content, re.IGNORECASE):
+                continue
+
+            # Try to extract degree and institution
+            degree = ""
+            institution = ""
+
+            # Look for degree
+            degree_match = re.search(r'(Bachelor|Master|PhD|Doctorate|Certificate|Diploma|B\.S\.|M\.S\.|B\.A\.|M\.A\.|M\.B\.A\.)(\s+of|\s+in)?\s+([^,|]+)',
+                                    p_content, re.IGNORECASE)
+            if degree_match:
+                degree = clean_text_for_reportlab(degree_match.group(0))
+
+            # Look for institution
+            inst_match = re.search(r'(University|College|School|Institute|Academy)\s+of\s+([^,|]+)',
+                                  p_content, re.IGNORECASE)
+            if inst_match:
+                institution = clean_text_for_reportlab(inst_match.group(0))
+
+            # If we found either degree or institution, create an education item
+            if degree or institution:
+                edu_item = {
+                    'degree': degree,
+                    'institution': institution,
+                    'location': "",
+                    'date': "",
+                    'details': clean_text_for_reportlab(p_content)
+                }
+                print(f"Adding education item from simple method: {edu_item}")
+                education_items.append(edu_item)
+
+    # If we still have no education items, create a generic one from all paragraphs
+    if not education_items:
+        print("Creating generic education item from all content")
+        all_paragraphs = []
+        p_tags = re.finditer(r'<p>(.*?)</p>', section_content, re.DOTALL | re.IGNORECASE)
+
+        for p in p_tags:
+            p_content = clean_text_for_reportlab(p.group(1))
+            if p_content:
+                all_paragraphs.append(p_content)
+
+        if all_paragraphs:
+            # Use the first paragraph as the degree/institution
+            first_para = all_paragraphs[0]
+            remaining = " ".join(all_paragraphs[1:]) if len(all_paragraphs) > 1 else ""
+
+            edu_item = {
+                'degree': first_para,
+                'institution': "",
+                'location': "",
+                'date': "",
+                'details': remaining
+            }
+            print(f"Adding generic education item: {edu_item}")
+            education_items.append(edu_item)
 
     return education_items
 
