@@ -51,7 +51,7 @@ export default function Home() {
       formData.append("job_description", jobDescription)
       formData.append("template", template)
 
-      const response = await fetch("http://localhost:5000/api/tailor-resume", {
+      const response = await fetch("http://137.184.12.12:3000/api/tailor-resume", {
         method: "POST",
         body: formData,
       })
