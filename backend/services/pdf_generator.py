@@ -2,6 +2,8 @@ from weasyprint import HTML
 import tempfile
 import os
 import uuid
+import traceback
+import datetime
 
 def generate_pdf(html_content, template):
     """
@@ -44,8 +46,19 @@ def generate_pdf(html_content, template):
         # Generate a unique filename
         output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
 
-        # Generate PDF
-        HTML(string=full_html).write_pdf(output_path)
+        # Generate PDF - Fix the constructor call
+        # Create a temporary HTML file
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
+            f.write(full_html)
+            temp_html_path = f.name
+
+        try:
+            # Use the file path instead of the string parameter
+            HTML(temp_html_path).write_pdf(output_path)
+        finally:
+            # Clean up the temporary HTML file
+            if os.path.exists(temp_html_path):
+                os.remove(temp_html_path)
 
         return output_path
 
@@ -156,3 +169,4 @@ def get_template_css(template):
     else:
         # Default to professional if template not found
         return base_css
+
