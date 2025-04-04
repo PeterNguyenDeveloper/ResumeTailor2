@@ -3,7 +3,6 @@ import tempfile
 import os
 import uuid
 import traceback
-import datetime
 
 def generate_pdf(html_content, template):
     """
@@ -46,15 +45,15 @@ def generate_pdf(html_content, template):
         # Generate a unique filename
         output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
 
-        # Generate PDF - Fix the constructor call
         # Create a temporary HTML file
         with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
             f.write(full_html)
             temp_html_path = f.name
 
         try:
-            # Use the file path instead of the string parameter
-            HTML(temp_html_path).write_pdf(output_path)
+            # Use the file path as a positional argument, not a named parameter
+            html = HTML(filename=temp_html_path)
+            html.write_pdf(output_path)
         finally:
             # Clean up the temporary HTML file
             if os.path.exists(temp_html_path):
