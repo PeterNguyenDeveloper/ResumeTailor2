@@ -31,23 +31,29 @@ def generate_pdf(html_content, template):
         # Get CSS for the selected template
         css_content = get_template_css(template)
 
-        # Create a temporary file for the HTML content
-        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as html_file:
-            html_file.write(html_content)
-            html_path = html_file.name
-
-        # Create a temporary file for the CSS content
-        with tempfile.NamedTemporaryFile(suffix='.css', delete=False, mode='w', encoding='utf-8') as css_file:
-            css_file.write(css_content)
-            css_path = css_file.name
+        # Create temporary files
+        html_path = None
+        css_path = None
 
         try:
+            # Create a temporary file for the HTML content
+            with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as html_file:
+                html_file.write(html_content)
+                html_path = html_file.name
+
+            # Create a temporary file for the CSS content
+            with tempfile.NamedTemporaryFile(suffix='.css', delete=False, mode='w', encoding='utf-8') as css_file:
+                css_file.write(css_content)
+                css_path = css_file.name
+
             # Generate the PDF using WeasyPrint
+            # Use a simpler approach that's compatible with older versions
             html = HTML(filename=html_path)
             css = CSS(filename=css_path)
 
-            # Render the PDF
-            html.write_pdf(output_path, stylesheets=[css])
+            # Render the PDF - use a simpler call that works with older versions
+            document = html.render(stylesheets=[css])
+            document.write_pdf(target=output_path)
 
             # Verify the PDF was created successfully
             if not os.path.exists(output_path):
@@ -59,12 +65,13 @@ def generate_pdf(html_content, template):
             return output_path
 
         except Exception as e:
-            raise Exception(f"WeasyPrint error: {str(e)}")
+            error_msg = str(e)
+            raise Exception(f"WeasyPrint error: {error_msg}")
 
         finally:
             # Clean up temporary files
             for path in [html_path, css_path]:
-                if os.path.exists(path):
+                if path and os.path.exists(path):
                     try:
                         os.remove(path)
                     except:
