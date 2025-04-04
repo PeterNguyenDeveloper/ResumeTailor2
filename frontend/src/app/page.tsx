@@ -5,6 +5,9 @@ import type React from "react"
 import { useState, useRef } from "react"
 import { Loader2, Upload, FileText, Download } from "lucide-react"
 
+// Backend URL configuration
+const BACKEND_URL = "http://137.184.12.12:5000" // Update this to your backend server address
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState("")
@@ -24,7 +27,9 @@ export default function Home() {
   const showToast = (message: string, type: "success" | "error") => {
     setError(type === "error" ? message : "")
     // For a real toast, you would implement a toast component or use a library
-    alert(message)
+    if (type === "success") {
+      alert(message)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,15 +56,31 @@ export default function Home() {
       formData.append("job_description", jobDescription)
       formData.append("template", template)
 
-      const response = await fetch("http://137.184.12.12:3000/api/tailor-resume", {
+      const response = await fetch(`${BACKEND_URL}/api/tailor-resume`, {
         method: "POST",
         body: formData,
       })
 
-      const data = await response.json()
-
+      // Check if the response is OK before trying to parse JSON
       if (!response.ok) {
-        throw new Error(data.error || "Failed to tailor resume")
+        const contentType = response.headers.get("content-type")
+        if (contentType && contentType.includes("application/json")) {
+          // If it's JSON, parse the error message
+          const errorData = await response.json()
+          throw new Error(errorData.error || `Server error: ${response.status}`)
+        } else {
+          // If it's not JSON, use the status text
+          throw new Error(`Server error: ${response.status} ${response.statusText}`)
+        }
+      }
+
+      // Now we know the response is OK, try to parse JSON
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error("Error parsing JSON:", jsonError)
+        throw new Error("Invalid response from server. Please try again later.")
       }
 
       setTailoredContent(data.content)
@@ -77,7 +98,7 @@ export default function Home() {
   const handleDownload = () => {
     if (pdfUrl) {
       // Create a full URL to the backend endpoint
-      const fullUrl = `http://localhost:5000${pdfUrl}`
+      const fullUrl = `${BACKEND_URL}${pdfUrl}`
 
       // Open the URL in a new tab/window
       window.open(fullUrl, "_blank")

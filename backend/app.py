@@ -11,7 +11,8 @@ from services.resume_tailor import tailor_resume
 from services.pdf_generator import generate_pdf
 
 app = Flask(__name__)
-# Allow all origins for CORS
+
+# Configure CORS to allow requests from your specific domain
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Create necessary folders
@@ -23,6 +24,7 @@ os.makedirs(PDF_FOLDER, exist_ok=True)
 # Add CORS headers to all responses
 @app.after_request
 def add_cors_headers(response):
+    # Allow requests from any origin for now to debug
     response.headers.add('Access-Control-Allow-Origin', '*')
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
@@ -102,12 +104,24 @@ def tailor_resume_endpoint():
     except Exception as outer_e:
         return jsonify({'error': f'Unexpected error: {str(outer_e)}'}), 500
 
-@app.route('/api/download/<filename>', methods=['GET'])
+@app.route('/api/download/<filename>', methods=['GET', 'OPTIONS'])
 def download_file(filename):
     """
     Serve the generated PDF file for download.
     """
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+
     try:
+        # Check if the file exists
+        file_path = os.path.join(PDF_FOLDER, filename)
+        if not os.path.exists(file_path):
+            return jsonify({'error': f'File not found: {filename}'}), 404
+
         # Set the appropriate headers for a PDF download
         response = send_from_directory(
             PDF_FOLDER,
@@ -116,6 +130,7 @@ def download_file(filename):
             mimetype='application/pdf'
         )
         response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        response.headers["Access-Control-Allow-Origin"] = "*"
         return response
     except Exception as e:
         return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
@@ -124,9 +139,28 @@ def download_file(filename):
 def health_check():
     return jsonify({'status': 'healthy', 'message': 'Flask backend is running'}), 200
 
+# Custom error handler for all exceptions
 @app.errorhandler(Exception)
 def handle_exception(e):
-    return jsonify({'error': 'An unexpected error occurred', 'details': str(e)}), 500
+    # Log the error
+    print(f"Unhandled exception: {str(e)}")
+    print(traceback.format_exc())
+
+    # Return JSON instead of HTML for HTTP errors
+    return jsonify({
+        "error": "An unexpected error occurred",
+        "details": str(e)
+    }), 500
+
+# Custom 404 handler
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Not found", "details": str(e)}), 404
+
+# Custom 405 handler
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "Method not allowed", "details": str(e)}), 405
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
