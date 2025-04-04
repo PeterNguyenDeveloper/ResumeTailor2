@@ -22,9 +22,6 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy font files if available (optional)
-COPY fonts/ fonts/
-
 # Copy the rest of the application
 COPY . .
 
