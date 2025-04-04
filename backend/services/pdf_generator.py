@@ -1,7 +1,7 @@
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListItem, ListFlowable, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 import os
 import uuid
@@ -29,8 +29,8 @@ def generate_pdf(html_content, template):
         pdf_filename = f"{uuid.uuid4()}_resume.pdf"
         output_path = os.path.join(output_dir, pdf_filename)
 
-        # Parse the HTML content to extract structured data
-        parsed_content = parse_html_content(html_content)
+        # Extract plain text content from HTML
+        plain_content = extract_plain_content(html_content)
 
         # Create the PDF document
         doc = SimpleDocTemplate(
@@ -48,37 +48,47 @@ def generate_pdf(html_content, template):
         # Build the PDF content
         elements = []
 
-        # Add name (h1)
-        if parsed_content.get('name'):
-            elements.append(Paragraph(parsed_content['name'], styles['name']))
-            elements.append(Spacer(1, 6))
-
-        # Add contact info
-        if parsed_content.get('contact_info'):
-            elements.append(Paragraph(parsed_content['contact_info'], styles['contact_info']))
+        # Add name
+        if plain_content.get('name'):
+            elements.append(Paragraph(plain_content['name'], styles['name']))
             elements.append(Spacer(1, 12))
 
+        # Add contact info
+        if plain_content.get('contact_info'):
+            elements.append(Paragraph(plain_content['contact_info'], styles['contact_info']))
+            elements.append(Spacer(1, 24))
+
         # Add sections
-        for section in parsed_content.get('sections', []):
+        for section in plain_content.get('sections', []):
             # Add section heading
             if section.get('heading'):
                 elements.append(Paragraph(section['heading'], styles['heading']))
-                elements.append(Spacer(1, 6))
+                elements.append(Spacer(1, 8))
 
-            # Add section content
-            for content in section.get('content', []):
-                if content['type'] == 'paragraph':
-                    elements.append(Paragraph(content['text'], styles['normal']))
-                    elements.append(Spacer(1, 6))
-                elif content['type'] == 'list':
-                    list_items = []
-                    for item in content['items']:
-                        list_items.append(ListItem(Paragraph(item, styles['list_item'])))
-                    elements.append(ListFlowable(list_items, bulletType='bullet', leftIndent=20))
+            # Add paragraphs
+            for paragraph in section.get('paragraphs', []):
+                # Clean the paragraph text to remove any potential issues
+                clean_text = clean_text_for_reportlab(paragraph)
+                if clean_text:
+                    elements.append(Paragraph(clean_text, styles['normal']))
                     elements.append(Spacer(1, 6))
 
-            # Add divider after section
-            elements.append(HRFlowable(width="100%", thickness=1, color=styles['divider_color'], spaceBefore=6, spaceAfter=12))
+            # Add lists
+            for list_items in section.get('lists', []):
+                if list_items:
+                    items = []
+                    for item in list_items:
+                        # Clean the list item text
+                        clean_item = clean_text_for_reportlab(item)
+                        if clean_item:
+                            items.append(ListItem(Paragraph(clean_item, styles['list_item'])))
+
+                    if items:
+                        elements.append(ListFlowable(items, bulletType='bullet', leftIndent=20))
+                        elements.append(Spacer(1, 6))
+
+            # Add spacer after section
+            elements.append(Spacer(1, 12))
 
         # Build the PDF
         doc.build(elements)
@@ -96,15 +106,51 @@ def generate_pdf(html_content, template):
         error_details = traceback.format_exc()
         raise Exception(f"Error generating PDF: {str(e)}\n{error_details}")
 
-def parse_html_content(html_content):
+def clean_text_for_reportlab(text):
     """
-    Parse the HTML content to extract structured data for ReportLab.
+    Clean text to avoid ReportLab issues with links and special characters.
+
+    Args:
+        text (str): Text to clean
+
+    Returns:
+        str: Cleaned text
+    """
+    if not text:
+        return ""
+
+    # Replace any HTML tags with their text content
+    text = re.sub(r'<[^>]*>', ' ', text)
+
+    # Decode HTML entities
+    text = html.unescape(text)
+
+    # Remove any potential link markers that might cause issues
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'www\.\S+', '', text)
+
+    # Replace problematic characters
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+
+    # Remove any control characters
+    text = ''.join(c for c in text if ord(c) >= 32 or c in '\n\r\t')
+
+    # Trim whitespace
+    text = text.strip()
+
+    return text
+
+def extract_plain_content(html_content):
+    """
+    Extract plain text content from HTML for ReportLab.
 
     Args:
         html_content (str): HTML content
 
     Returns:
-        dict: Structured data extracted from HTML
+        dict: Structured plain text data
     """
     result = {
         'name': '',
@@ -112,67 +158,79 @@ def parse_html_content(html_content):
         'sections': []
     }
 
-    # Extract content between <body> tags if present
-    body_match = re.search(r'<body>(.*?)</body>', html_content, re.DOTALL | re.IGNORECASE)
-    if body_match:
-        html_content = body_match.group(1)
+    try:
+        # Extract content between <body> tags if present
+        body_match = re.search(r'<body>(.*?)</body>', html_content, re.DOTALL | re.IGNORECASE)
+        if body_match:
+            html_content = body_match.group(1)
 
-    # Extract name (h1)
-    name_match = re.search(r'<h1>(.*?)</h1>', html_content, re.DOTALL | re.IGNORECASE)
-    if name_match:
-        result['name'] = html.unescape(name_match.group(1).strip())
+        # Extract name (h1)
+        name_match = re.search(r'<h1>(.*?)</h1>', html_content, re.DOTALL | re.IGNORECASE)
+        if name_match:
+            result['name'] = html.unescape(re.sub(r'<[^>]*>', '', name_match.group(1))).strip()
 
-    # Extract contact info
-    contact_match = re.search(r'<p class="contact-info">(.*?)</p>', html_content, re.DOTALL | re.IGNORECASE)
-    if contact_match:
-        result['contact_info'] = html.unescape(contact_match.group(1).strip())
+        # Extract contact info
+        contact_match = re.search(r'<p class="contact-info">(.*?)</p>', html_content, re.DOTALL | re.IGNORECASE)
+        if contact_match:
+            result['contact_info'] = html.unescape(re.sub(r'<[^>]*>', '', contact_match.group(1))).strip()
 
-    # Extract sections
-    section_pattern = r'<div class="section">(.*?)</div>'
-    section_matches = re.finditer(section_pattern, html_content, re.DOTALL | re.IGNORECASE)
+        # Extract sections
+        section_pattern = r'<div class="section">(.*?)</div>'
+        section_matches = re.finditer(section_pattern, html_content, re.DOTALL | re.IGNORECASE)
 
-    for section_match in section_matches:
-        section_content = section_match.group(1)
-        section = {'heading': '', 'content': []}
+        for section_match in section_matches:
+            section_content = section_match.group(1)
+            section = {
+                'heading': '',
+                'paragraphs': [],
+                'lists': []
+            }
 
-        # Extract section heading
-        heading_match = re.search(r'<h2>(.*?)</h2>', section_content, re.DOTALL | re.IGNORECASE)
-        if heading_match:
-            section['heading'] = html.unescape(heading_match.group(1).strip())
+            # Extract section heading
+            heading_match = re.search(r'<h2>(.*?)</h2>', section_content, re.DOTALL | re.IGNORECASE)
+            if heading_match:
+                section['heading'] = html.unescape(re.sub(r'<[^>]*>', '', heading_match.group(1))).strip()
 
-        # Extract paragraphs
-        paragraph_pattern = r'<p(?:\s+[^>]*)?>(.*?)</p>'
-        paragraph_matches = re.finditer(paragraph_pattern, section_content, re.DOTALL | re.IGNORECASE)
+            # Extract paragraphs (excluding contact-info paragraphs)
+            paragraph_pattern = r'<p(?!\s+class="contact-info")[^>]*>(.*?)</p>'
+            paragraph_matches = re.finditer(paragraph_pattern, section_content, re.DOTALL | re.IGNORECASE)
 
-        for paragraph_match in paragraph_matches:
-            paragraph_text = paragraph_match.group(1).strip()
-            if 'class="contact-info"' not in paragraph_match.group(0):  # Skip contact info
-                section['content'].append({
-                    'type': 'paragraph',
-                    'text': html.unescape(paragraph_text)
-                })
+            for paragraph_match in paragraph_matches:
+                paragraph_text = paragraph_match.group(1).strip()
+                clean_text = html.unescape(re.sub(r'<[^>]*>', '', paragraph_text)).strip()
+                if clean_text:
+                    section['paragraphs'].append(clean_text)
 
-        # Extract lists
-        list_pattern = r'<ul>(.*?)</ul>'
-        list_matches = re.finditer(list_pattern, section_content, re.DOTALL | re.IGNORECASE)
+            # Extract lists
+            list_pattern = r'<ul>(.*?)</ul>'
+            list_matches = re.finditer(list_pattern, section_content, re.DOTALL | re.IGNORECASE)
 
-        for list_match in list_matches:
-            list_content = list_match.group(1)
-            list_items = []
+            for list_match in list_matches:
+                list_content = list_match.group(1)
+                list_items = []
 
-            item_pattern = r'<li>(.*?)</li>'
-            item_matches = re.finditer(item_pattern, list_content, re.DOTALL | re.IGNORECASE)
+                item_pattern = r'<li>(.*?)</li>'
+                item_matches = re.finditer(item_pattern, list_content, re.DOTALL | re.IGNORECASE)
 
-            for item_match in item_matches:
-                list_items.append(html.unescape(item_match.group(1).strip()))
+                for item_match in item_matches:
+                    item_text = item_match.group(1).strip()
+                    clean_text = html.unescape(re.sub(r'<[^>]*>', '', item_text)).strip()
+                    if clean_text:
+                        list_items.append(clean_text)
 
-            if list_items:
-                section['content'].append({
-                    'type': 'list',
-                    'items': list_items
-                })
+                if list_items:
+                    section['lists'].append(list_items)
 
-        result['sections'].append(section)
+            if section['heading'] or section['paragraphs'] or section['lists']:
+                result['sections'].append(section)
+
+    except Exception as e:
+        # If there's an error in parsing, create a simple section with the error
+        result['sections'] = [{
+            'heading': 'Resume Content',
+            'paragraphs': ['There was an error parsing the resume HTML. Please try again.'],
+            'lists': []
+        }]
 
     return result
 
@@ -191,9 +249,18 @@ def get_template_styles(template):
 
     # Common styles
     result = {
-        'normal': styles['Normal'],
-        'list_item': styles['Normal'],
-        'divider_color': colors.gray
+        'normal': ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        ),
+        'list_item': ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
     }
 
     # Template-specific styles
@@ -216,11 +283,10 @@ def get_template_styles(template):
             parent=styles['Heading2'],
             fontSize=12,
             textColor=colors.Color(0.16, 0.5, 0.73),  # #2980b9
-            borderWidth=1,
             borderColor=colors.Color(0.2, 0.6, 0.86),  # #3498db
-            borderPadding=(0, 0, 2, 0)
+            borderWidth=0,
+            borderPadding=0
         )
-        result['divider_color'] = colors.Color(0.2, 0.6, 0.86)  # #3498db
 
     elif template == 'creative':
         result['name'] = ParagraphStyle(
@@ -228,9 +294,7 @@ def get_template_styles(template):
             parent=styles['Title'],
             fontSize=18,
             textColor=colors.Color(0.55, 0.27, 0.68),  # #8e44ad
-            alignment=TA_CENTER,
-            textTransform='uppercase',
-            letterSpacing=2
+            alignment=TA_CENTER
         )
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
@@ -243,13 +307,10 @@ def get_template_styles(template):
             parent=styles['Heading2'],
             fontSize=13,
             textColor=colors.Color(0.83, 0.33, 0),  # #d35400
-            textTransform='uppercase',
-            letterSpacing=1,
-            borderWidth=1,
             borderColor=colors.Color(0.9, 0.49, 0.13),  # #e67e22
-            borderPadding=(0, 0, 2, 0)
+            borderWidth=0,
+            borderPadding=0
         )
-        result['divider_color'] = colors.Color(0.83, 0.33, 0)  # #d35400
 
     elif template == 'minimal':
         result['name'] = ParagraphStyle(
@@ -257,8 +318,7 @@ def get_template_styles(template):
             parent=styles['Title'],
             fontSize=14,
             textColor=colors.Color(0.2, 0.2, 0.2),  # #333
-            alignment=TA_CENTER,
-            letterSpacing=1
+            alignment=TA_CENTER
         )
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
@@ -271,22 +331,22 @@ def get_template_styles(template):
             parent=styles['Heading2'],
             fontSize=11,
             textColor=colors.Color(0.33, 0.33, 0.33),  # #555
-            letterSpacing=0.5,
-            borderWidth=1,
             borderColor=colors.Color(0.87, 0.87, 0.87),  # #ddd
-            borderPadding=(0, 0, 2, 0)
+            borderWidth=0,
+            borderPadding=0
         )
         result['normal'] = ParagraphStyle(
             'Normal',
             parent=styles['Normal'],
-            fontSize=9
+            fontSize=9,
+            leading=12
         )
         result['list_item'] = ParagraphStyle(
             'ListItem',
             parent=styles['Normal'],
-            fontSize=9
+            fontSize=9,
+            leading=12
         )
-        result['divider_color'] = colors.Color(0.87, 0.87, 0.87)  # #ddd
 
     elif template == 'executive':
         result['name'] = ParagraphStyle(
@@ -294,12 +354,7 @@ def get_template_styles(template):
             parent=styles['Title'],
             fontSize=18,
             textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
-            alignment=TA_CENTER,
-            textTransform='uppercase',
-            borderWidth=3,
-            borderColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
-            borderPadding=(0, 0, 3, 0),
-            borderStyle='double'
+            alignment=TA_CENTER
         )
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
@@ -312,16 +367,15 @@ def get_template_styles(template):
             parent=styles['Heading2'],
             fontSize=13,
             textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
-            borderWidth=1,
             borderColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
-            borderPadding=(0, 0, 2, 0)
+            borderWidth=0,
+            borderPadding=0
         )
         result['normal'] = ParagraphStyle(
             'Normal',
             parent=styles['Normal'],
             alignment=TA_JUSTIFY
         )
-        result['divider_color'] = colors.Color(0.1, 0.1, 0.1)  # #1a1a1a
 
     else:
         # Default to professional if template not found
