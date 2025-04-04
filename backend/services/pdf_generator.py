@@ -10,6 +10,7 @@ import os
 import uuid
 import re
 import html
+import traceback
 
 # Register fonts if available
 try:
@@ -41,29 +42,82 @@ def generate_pdf(html_content, template):
         # Generate a unique filename
         output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
 
-        # Parse HTML and extract structured content
-        resume_sections = parse_resume_html(html_content)
+        # Get styles based on template
+        styles = getSampleStyleSheet()
 
-        # Convert to ReportLab elements with the selected template
-        content = create_resume_document(resume_sections, template)
-
-        # Create the PDF document with proper margins for a resume
+        # Create a simple document
         doc = SimpleDocTemplate(
             output_path,
             pagesize=letter,
-            rightMargin=0.5*inch,
-            leftMargin=0.5*inch,
-            topMargin=0.5*inch,
-            bottomMargin=0.5*inch
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
         )
 
+        # Create a list to hold the elements
+        elements = []
+
+        # Add a title
+        elements.append(Paragraph("Tailored Resume", styles['Title']))
+        elements.append(Spacer(1, 12))
+
+        # Add a simple debug message to ensure content is being added
+        elements.append(Paragraph("Debug: PDF Generator is working", styles['Heading2']))
+        elements.append(Spacer(1, 12))
+
+        # Add the raw HTML content as text for debugging
+        elements.append(Paragraph("HTML Content Length: " + str(len(html_content)), styles['Normal']))
+        elements.append(Spacer(1, 12))
+
+        # Try to extract and add some content from the HTML
+        try:
+            # Clean the HTML content
+            clean_content = re.sub(r'<[^>]*>', ' ', html_content)
+            clean_content = html.unescape(clean_content)
+            clean_content = clean_content.strip()
+
+            # Add the first 1000 characters of cleaned content
+            preview = clean_content[:1000] + ("..." if len(clean_content) > 1000 else "")
+            elements.append(Paragraph("Content Preview:", styles['Heading2']))
+            elements.append(Spacer(1, 6))
+            elements.append(Paragraph(preview, styles['Normal']))
+
+            # Try to extract sections
+            h1_tags = re.findall(r'<h1[^>]*>(.*?)</h1>', html_content, re.DOTALL)
+            if h1_tags:
+                elements.append(Spacer(1, 12))
+                elements.append(Paragraph("Found H1 Tags:", styles['Heading2']))
+                for h1 in h1_tags:
+                    elements.append(Paragraph(html.unescape(h1.strip()), styles['Heading1']))
+
+            h2_tags = re.findall(r'<h2[^>]*>(.*?)</h2>', html_content, re.DOTALL)
+            if h2_tags:
+                elements.append(Spacer(1, 12))
+                elements.append(Paragraph("Found H2 Tags:", styles['Heading2']))
+                for h2 in h2_tags:
+                    elements.append(Paragraph(html.unescape(h2.strip()), styles['Heading2']))
+
+            p_tags = re.findall(r'<p[^>]*>(.*?)</p>', html_content, re.DOTALL)
+            if p_tags:
+                elements.append(Spacer(1, 12))
+                elements.append(Paragraph(f"Found {len(p_tags)} Paragraph Tags", styles['Heading2']))
+                # Just show the first few paragraphs
+                for p in p_tags[:3]:
+                    elements.append(Paragraph(html.unescape(p.strip()), styles['Normal']))
+                    elements.append(Spacer(1, 6))
+
+        except Exception as parsing_error:
+            elements.append(Paragraph(f"Error parsing HTML: {str(parsing_error)}", styles['Normal']))
+
         # Build the PDF
-        doc.build(content)
+        doc.build(elements)
 
         return output_path
 
     except Exception as e:
-        raise Exception(f"Error generating PDF: {str(e)}")
+        error_details = traceback.format_exc()
+        raise Exception(f"Error generating PDF: {str(e)}\n{error_details}")
 
 def parse_resume_html(html_content):
     """

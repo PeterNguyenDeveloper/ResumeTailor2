@@ -2,10 +2,11 @@ import google.generativeai as genai
 import os
 import html
 import datetime
+import re
 
 # Helper function to get timestamp for print statements
 def get_timestamp():
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+  return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # In a real application, you would get this from environment variables
 API_KEY = os.environ.get("GEMINI_API_KEY", "your_api_key_here")
@@ -25,12 +26,10 @@ def tailor_resume(resume_text, job_description):
         str: HTML content of the tailored resume
     """
     try:
-        print(f"[{get_timestamp()}] Initializing Gemini model", flush=True)
         # Initialize the model
-        model = genai.GenerativeModel('gemini-2.5-pro-exp-03-25')
+        model = genai.GenerativeModel('gemini-pro')
 
         # Create the prompt
-        print(f"[{get_timestamp()}] Creating prompt for Gemini", flush=True)
         prompt = f"""
         I need you to tailor a resume for a specific job.
 
@@ -47,25 +46,52 @@ def tailor_resume(resume_text, job_description):
         3. Adjusting the summary/objective to match the job
         4. Prioritizing relevant experience
 
-        Return the result as clean HTML that can be rendered in a browser. Use appropriate HTML tags for structure (h1, h2, p, ul, li, etc.).
+        Return the result as clean HTML that can be rendered in a browser and converted to PDF.
+        Use appropriate HTML tags for structure:
+        - Use <h1> for the name
+        - Use <p> for contact information
+        - Use <h2> for section headings (like "Experience", "Education", "Skills")
+        - Use <p> for paragraphs
+        - Use <ul> and <li> for lists
+
         Do not include any explanations or notes, just the formatted HTML content of the tailored resume.
         """
 
         # Generate the tailored resume
-        print(f"[{get_timestamp()}] Sending request to Gemini API", flush=True)
         response = model.generate_content(prompt)
 
-        # Extract and clean the HTML content
+        # Extract the HTML content
         html_content = response.text
-        print(f"[{get_timestamp()}] Received response from Gemini API: {len(html_content)} characters", flush=True)
 
-        # Basic sanitization (in a real app, use a proper HTML sanitizer)
-        html_content = html.escape(html_content).replace('\n', '<br>')
-        print(f"[{get_timestamp()}] Sanitized HTML content", flush=True)
+        # Check if the content is wrapped in code blocks and extract it
+        if "\`\`\`html" in html_content and "\`\`\`" in html_content:
+            # Extract content between \`\`\`html and \`\`\`
+            match = re.search(r'\`\`\`html\s*(.*?)\s*\`\`\`', html_content, re.DOTALL)
+            if match:
+                html_content = match.group(1)
+
+        # Ensure the content has basic HTML structure
+        if not html_content.strip().startswith('<'):
+            # If it's not HTML, wrap it in basic HTML tags
+            html_content = f"<h1>Tailored Resume</h1><p>{html_content}</p>"
+
+        # Add basic HTML structure if not present
+        if "<html" not in html_content:
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Tailored Resume</title>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
 
         return html_content
 
     except Exception as e:
-        print(f"[{get_timestamp()}] ERROR tailoring resume with Gemini: {str(e)}", flush=True)
         raise Exception(f"Error tailoring resume with Gemini: {str(e)}")
 
