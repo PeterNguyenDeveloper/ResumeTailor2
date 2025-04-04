@@ -113,6 +113,11 @@ def health_check():
 def handle_exception(e):
     return jsonify({'error': 'An unexpected error occurred', 'details': str(e)}), 500
 
+CMD ["asd","-u","app.py"]
+CMD ["asd","-u","app.py"]
+CMD ["asd","-u","app.py"]
+CMD ["asd","-u","app.py"]
+
 if __name__ == '__main__':
     # Check if Gemini API key is set
     api_key = os.environ.get("GEMINI_API_KEY")
