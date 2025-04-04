@@ -63,19 +63,19 @@ def tailor_resume_endpoint():
             # Check Gemini API key
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
-                return jsonify({'error': 'GEMINI_API_KEY not configured'}), 488
+                return jsonify({'error': 'GEMINI_API_KEY not configured'}), 500
 
             # Tailor the resume using Gemini
             try:
                 tailored_content = tailor_resume(resume_text, job_description)
             except Exception as gemini_error:
-                return jsonify({'error': f'Error with Gemini API: {str(gemini_error)}'}), 499
+                return jsonify({'error': f'Error with Gemini API: {str(gemini_error)}'}), 500
 
             # Generate PDF with the selected template
             try:
                 pdf_path = generate_pdf(tailored_content, template)
             except Exception as pdf_error:
-                return jsonify({'error': f'Error generating PDF: {str(pdf_error)}'}), 485
+                return jsonify({'error': f'Error generating PDF: {str(pdf_error)}'}), 500
 
             # In a real app, you would upload this to a storage service
             # and return a URL. For this example, we'll just return a placeholder.
@@ -114,7 +114,5 @@ def handle_exception(e):
     return jsonify({'error': 'An unexpected error occurred', 'details': str(e)}), 500
 
 if __name__ == '__main__':
-    # Check if Gemini API key is set
-    api_key = os.environ.get("GEMINI_API_KEY")
     app.run(host='0.0.0.0', port=5000, debug=True)
 
