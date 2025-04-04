@@ -45,19 +45,21 @@ def generate_pdf(html_content, template):
         # Generate a unique filename
         output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
 
-        # Create a temporary HTML file
-        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
-            f.write(full_html)
-            temp_html_path = f.name
-
+        # Try direct string approach with base_url
         try:
-            # Use the file path as a positional argument, not a named parameter
-            html = HTML(filename=temp_html_path)
-            html.write_pdf(output_path)
-        finally:
-            # Clean up the temporary HTML file
-            if os.path.exists(temp_html_path):
-                os.remove(temp_html_path)
+            HTML(string=full_html, base_url='.').write_pdf(output_path)
+        except Exception as html_error:
+            # If that fails, try the file-based approach
+            with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
+                f.write(full_html)
+                temp_html_path = f.name
+
+            try:
+                HTML(filename=temp_html_path).write_pdf(output_path)
+            finally:
+                # Clean up the temporary HTML file
+                if os.path.exists(temp_html_path):
+                    os.remove(temp_html_path)
 
         return output_path
 
