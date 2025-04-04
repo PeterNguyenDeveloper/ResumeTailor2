@@ -9,7 +9,7 @@ from services.resume_tailor import tailor_resume
 from services.pdf_generator import generate_pdf
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app,resources={r"/*": {"origins": ["http://137.184.12.12:3000", "http://localhost:3000"]}})  # Enable CORS for all routes
 
 # Create upload folder if it doesn't exist
 UPLOAD_FOLDER = 'uploads'
