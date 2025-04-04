@@ -27,7 +27,7 @@ def tailor_resume(resume_text, job_description):
     """
     try:
         # Initialize the model
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-pro')
 
         # Create the prompt with specific instructions for WeasyPrint-compatible HTML
         prompt = f"""
