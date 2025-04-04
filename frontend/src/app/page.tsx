@@ -46,7 +46,7 @@ export default function Home() {
     formData.append("template", selectedTemplate)
 
     try {
-      const response = await fetch("http://localhost:5000/api/tailor-resume", {
+      const response = await fetch("/api/tailor-resume", {
         method: "POST",
         body: formData,
       })

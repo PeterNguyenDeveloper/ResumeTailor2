@@ -1,19 +1,47 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import os
 import tempfile
 import uuid
+import json
+import logging
+import traceback
 from werkzeug.utils import secure_filename
 from services.pdf_parser import extract_text_from_pdf
 from services.resume_tailor import tailor_resume
 from services.pdf_generator import generate_pdf
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-CORS(app,resources={r"/*": {"origins": ["http://137.184.12.12:3000", "http://localhost:3000"]}})  # Enable CORS for all routes
+# Allow all origins for CORS
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Create upload folder if it doesn't exist
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Add CORS headers to all responses
+@app.after_request
+def add_cors_headers(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
+# Handle OPTIONS requests explicitly
+@app.route('/api/tailor-resume', methods=['OPTIONS'])
+def handle_options():
+    response = make_response()
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 @app.route('/api/tailor-resume', methods=['POST'])
 def tailor_resume_endpoint():
@@ -39,32 +67,28 @@ def tailor_resume_endpoint():
         # Extract text from PDF
         resume_text = extract_text_from_pdf(temp_path)
 
-        print(f"Extracted resume text: {resume_text[:100]}...")  # Debugging line
-
         # Tailor the resume using Gemini
         tailored_content = tailor_resume(resume_text, job_description)
 
-        print(f"Tailored content: {tailored_content[:100]}...")  # Debugging line
-
         # Generate PDF with the selected template
-        pdf_path = generate_pdf(tailored_content, template)
+        try:
+            pdf_path = generate_pdf(tailored_content, template)
 
-        print(f"Generated PDF path: {pdf_path}")  # Debugging line
+        except Exception as pdf_error:
+            return jsonify({'error': f'Error generating PDF: {str(pdf_error)}'}), 500
 
         # In a real app, you would upload this to a storage service
         # and return a URL. For this example, we'll just return a placeholder.
         pdf_url = f"/download/{os.path.basename(pdf_path)}"
 
-        print(f"PDF URL: {pdf_url}")  # Debugging line
-
-        return jsonify({
+        response_data = {
             'success': True,
             'content': tailored_content,
             'pdf_url': pdf_url
-        })
+        }
+        return jsonify(response_data)
 
     except Exception as e:
-        print(f"Error: {str(e)}")  # Debugging line
         return jsonify({'error': str(e)}), 500
 
     finally:
@@ -78,5 +102,14 @@ def download_file(filename):
     # For this example, we'll just return a placeholder response
     return jsonify({'message': 'File download endpoint'}), 200
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'message': 'Flask backend is running'}), 200
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({'error': 'An unexpected error occurred', 'details': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
+
