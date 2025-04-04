@@ -52,6 +52,7 @@ export default function Home() {
       })
 
       if (!response.ok) {
+        throw new Error(response)
         throw new Error("Failed to generate resume")
       }
 
