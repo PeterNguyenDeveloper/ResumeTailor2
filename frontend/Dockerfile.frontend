@@ -17,6 +17,9 @@ COPY . .
 # Next.js collects anonymous telemetry data about general usage
 ENV NEXT_TELEMETRY_DISABLED 1
 
+# Build the application with Tailwind CSS
+RUN npx tailwindcss init -p
+
 # Build the application
 RUN npm run build
 
