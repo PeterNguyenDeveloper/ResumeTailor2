@@ -1,12 +1,16 @@
-from weasyprint import HTML
-import tempfile
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import os
 import uuid
-import traceback
+import re
+import html
 
 def generate_pdf(html_content, template):
     """
-    Generate a PDF from HTML content using the selected template.
+    Generate a PDF from HTML content using the selected template with ReportLab.
 
     Args:
         html_content (str): HTML content of the tailored resume
@@ -16,28 +20,6 @@ def generate_pdf(html_content, template):
         str: Path to the generated PDF file
     """
     try:
-        # Apply the template (in a real app, you would have different CSS for each template)
-        css_styles = get_template_css(template)
-
-        # Create a complete HTML document with the CSS
-        full_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Tailored Resume</title>
-            <style>
-                {css_styles}
-            </style>
-        </head>
-        <body>
-            <div class="resume-container">
-                {html_content}
-            </div>
-        </body>
-        </html>
-        """
-
         # Create output directory if it doesn't exist
         output_dir = 'generated_pdfs'
         os.makedirs(output_dir, exist_ok=True)
@@ -45,129 +27,251 @@ def generate_pdf(html_content, template):
         # Generate a unique filename
         output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
 
-        # Try direct string approach with base_url
-        try:
-            HTML(string=full_html, base_url='.').write_pdf(output_path)
-        except Exception as html_error:
-            # If that fails, try the file-based approach
-            with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as f:
-                f.write(full_html)
-                temp_html_path = f.name
+        # Convert HTML to a format ReportLab can use
+        content = convert_html_to_reportlab(html_content, template)
 
-            try:
-                HTML(filename=temp_html_path).write_pdf(output_path)
-            finally:
-                # Clean up the temporary HTML file
-                if os.path.exists(temp_html_path):
-                    os.remove(temp_html_path)
+        # Create the PDF document
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=letter,
+            rightMargin=72,
+            leftMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
+
+        # Build the PDF
+        doc.build(content)
 
         return output_path
 
     except Exception as e:
         raise Exception(f"Error generating PDF: {str(e)}")
 
-def get_template_css(template):
+def convert_html_to_reportlab(html_content, template):
     """
-    Get the CSS styles for the selected template.
+    Convert HTML content to ReportLab elements.
+
+    Args:
+        html_content (str): HTML content
+        template (str): Template name
+
+    Returns:
+        list: List of ReportLab elements
+    """
+    # Get styles based on template
+    styles = get_template_styles(template)
+
+    # Clean up HTML content
+    html_content = html_content.replace('<br>', '\n')
+
+    # Extract content from HTML
+    elements = []
+
+    # Simple HTML parsing (for a real app, use a proper HTML parser)
+    # Extract h1 tags (name/title)
+    h1_matches = re.findall(r'<h1[^>]*>(.*?)</h1>', html_content, re.DOTALL)
+    for match in h1_matches:
+        text = html.unescape(match.strip())
+        elements.append(Paragraph(text, styles['h1']))
+        elements.append(Spacer(1, 12))
+
+    # Extract h2 tags (section headers)
+    h2_matches = re.findall(r'<h2[^>]*>(.*?)</h2>', html_content, re.DOTALL)
+    for match in h2_matches:
+        text = html.unescape(match.strip())
+        elements.append(Paragraph(text, styles['h2']))
+        elements.append(Spacer(1, 8))
+
+    # Extract p tags (paragraphs)
+    p_matches = re.findall(r'<p[^>]*>(.*?)</p>', html_content, re.DOTALL)
+    for match in p_matches:
+        text = html.unescape(match.strip())
+        elements.append(Paragraph(text, styles['normal']))
+        elements.append(Spacer(1, 6))
+
+    # Extract ul/li tags (lists)
+    ul_matches = re.findall(r'<ul[^>]*>(.*?)</ul>', html_content, re.DOTALL)
+    for ul in ul_matches:
+        li_matches = re.findall(r'<li[^>]*>(.*?)</li>', ul, re.DOTALL)
+        for match in li_matches:
+            text = html.unescape(match.strip())
+            elements.append(Paragraph(f"• {text}", styles['bullet']))
+            elements.append(Spacer(1, 3))
+        elements.append(Spacer(1, 6))
+
+    # If no elements were extracted, use the raw content
+    if not elements:
+        # Remove all HTML tags and use the plain text
+        plain_text = re.sub(r'<[^>]*>', '', html_content)
+        plain_text = html.unescape(plain_text.strip())
+        elements.append(Paragraph(plain_text, styles['normal']))
+
+    return elements
+
+def get_template_styles(template):
+    """
+    Get the ReportLab styles for the selected template.
 
     Args:
         template (str): Template name
 
     Returns:
-        str: CSS styles for the template
+        dict: Dictionary of styles
     """
-    # Base styles for all templates
-    base_css = """
-        body {
-            font-family: 'Arial', sans-serif;
-            margin: 0;
-            padding: 0;
-            color: #333;
-        }
-        .resume-container {
-            max-width: 8.5in;
-            margin: 0 auto;
-            padding: 1in;
-        }
-        h1, h2, h3 {
-            margin-top: 0;
-        }
-        ul {
-            padding-left: 20px;
-        }
-    """
+    # Get base styles
+    styles = getSampleStyleSheet()
 
     # Template-specific styles
     if template == 'professional':
-        return base_css + """
-            h1 {
-                color: #2c3e50;
-                border-bottom: 2px solid #3498db;
-                padding-bottom: 10px;
-            }
-            h2 {
-                color: #2980b9;
-                border-bottom: 1px solid #bdc3c7;
-                padding-bottom: 5px;
-            }
-            .resume-container {
-                line-height: 1.5;
-            }
-        """
+        h1_style = ParagraphStyle(
+            'Professional H1',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor('#2c3e50'),
+            spaceAfter=6,
+            borderWidth=1,
+            borderColor=colors.HexColor('#3498db'),
+            borderPadding=5,
+            borderRadius=2,
+            alignment=TA_CENTER
+        )
+
+        h2_style = ParagraphStyle(
+            'Professional H2',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#2980b9'),
+            spaceAfter=4
+        )
+
+        normal_style = ParagraphStyle(
+            'Professional Normal',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14
+        )
+
+        bullet_style = ParagraphStyle(
+            'Professional Bullet',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            leftIndent=20
+        )
+
     elif template == 'creative':
-        return base_css + """
-            h1 {
-                color: #8e44ad;
-                text-transform: uppercase;
-                letter-spacing: 2px;
-            }
-            h2 {
-                color: #d35400;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-            }
-            .resume-container {
-                line-height: 1.6;
-                background-color: #f9f9f9;
-                border-left: 5px solid #8e44ad;
-            }
-        """
+        h1_style = ParagraphStyle(
+            'Creative H1',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.HexColor('#8e44ad'),
+            spaceAfter=8,
+            alignment=TA_CENTER
+        )
+
+        h2_style = ParagraphStyle(
+            'Creative H2',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#d35400'),
+            spaceAfter=6
+        )
+
+        normal_style = ParagraphStyle(
+            'Creative Normal',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=15
+        )
+
+        bullet_style = ParagraphStyle(
+            'Creative Bullet',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=15,
+            leftIndent=20
+        )
+
     elif template == 'minimal':
-        return base_css + """
-            h1 {
-                color: #333;
-                font-weight: 300;
-                letter-spacing: 1px;
-            }
-            h2 {
-                color: #555;
-                font-weight: 300;
-                letter-spacing: 0.5px;
-            }
-            .resume-container {
-                line-height: 1.4;
-                font-weight: 300;
-            }
-        """
+        h1_style = ParagraphStyle(
+            'Minimal H1',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.black,
+            spaceAfter=6,
+            alignment=TA_CENTER
+        )
+
+        h2_style = ParagraphStyle(
+            'Minimal H2',
+            parent=styles['Heading2'],
+            fontSize=13,
+            textColor=colors.gray,
+            spaceAfter=4
+        )
+
+        normal_style = ParagraphStyle(
+            'Minimal Normal',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=13
+        )
+
+        bullet_style = ParagraphStyle(
+            'Minimal Bullet',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=13,
+            leftIndent=15
+        )
+
     elif template == 'executive':
-        return base_css + """
-            h1 {
-                color: #1a1a1a;
-                border-bottom: 3px double #1a1a1a;
-                padding-bottom: 10px;
-                text-transform: uppercase;
-            }
-            h2 {
-                color: #1a1a1a;
-                border-bottom: 1px solid #1a1a1a;
-                padding-bottom: 5px;
-            }
-            .resume-container {
-                line-height: 1.5;
-                font-family: 'Georgia', serif;
-            }
-        """
+        h1_style = ParagraphStyle(
+            'Executive H1',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.black,
+            spaceAfter=10,
+            borderWidth=0,
+            borderColor=colors.black,
+            borderPadding=0,
+            alignment=TA_CENTER
+        )
+
+        h2_style = ParagraphStyle(
+            'Executive H2',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.black,
+            spaceAfter=6
+        )
+
+        normal_style = ParagraphStyle(
+            'Executive Normal',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Roman'
+        )
+
+        bullet_style = ParagraphStyle(
+            'Executive Bullet',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            leftIndent=20,
+            fontName='Times-Roman'
+        )
+
     else:
         # Default to professional if template not found
-        return base_css
+        return get_template_styles('professional')
+
+    return {
+        'h1': h1_style,
+        'h2': h2_style,
+        'normal': normal_style,
+        'bullet': bullet_style
+    }
 
