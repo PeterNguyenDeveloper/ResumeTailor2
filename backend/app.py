@@ -39,15 +39,23 @@ def tailor_resume_endpoint():
         # Extract text from PDF
         resume_text = extract_text_from_pdf(temp_path)
 
+        print(f"Extracted resume text: {resume_text[:100]}...")  # Debugging line
+
         # Tailor the resume using Gemini
         tailored_content = tailor_resume(resume_text, job_description)
+
+        print(f"Tailored content: {tailored_content[:100]}...")  # Debugging line
 
         # Generate PDF with the selected template
         pdf_path = generate_pdf(tailored_content, template)
 
+        print(f"Generated PDF path: {pdf_path}")  # Debugging line
+
         # In a real app, you would upload this to a storage service
         # and return a URL. For this example, we'll just return a placeholder.
         pdf_url = f"/download/{os.path.basename(pdf_path)}"
+
+        print(f"PDF URL: {pdf_url}")  # Debugging line
 
         return jsonify({
             'success': True,
@@ -56,6 +64,7 @@ def tailor_resume_endpoint():
         })
 
     except Exception as e:
+        print(f"Error: {str(e)}")  # Debugging line
         return jsonify({'error': str(e)}), 500
 
     finally:
