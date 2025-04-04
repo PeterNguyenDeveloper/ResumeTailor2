@@ -49,8 +49,8 @@ def tailor_resume(resume_text, job_description):
 def create_prompt(resume_text, job_description):
     """Create the prompt for Gemini AI."""
     prompt = (
-        "I need you to tailor a resume for a specific job and output it in HTML format "
-        "that will be converted to PDF using WeasyPrint.\n\n"
+        "I need you to tailor a resume for a specific job and output it in a simple HTML format "
+        "that will be converted to PDF using ReportLab (not WeasyPrint).\n\n"
 
         f"Here is the original resume:\n{resume_text}\n\n"
 
@@ -63,19 +63,21 @@ def create_prompt(resume_text, job_description):
         "3. Adjusting the summary/objective to match the job\n"
         "4. Prioritizing relevant experience\n\n"
 
-        "IMPORTANT: Return a complete, well-structured HTML document that WeasyPrint can render properly.\n\n"
+        "IMPORTANT: Return a simple, clean HTML document that will be parsed and converted to PDF using ReportLab.\n\n"
 
         "Follow these specific guidelines for the HTML:\n"
         "1. Include a proper DOCTYPE, <html>, <head>, and <body> tags\n"
-        "2. Use semantic HTML5 elements\n"
+        "2. Use simple HTML elements - ReportLab has limited HTML parsing capabilities\n"
         "3. Use <h1> for the name at the top of the resume\n"
         "4. Use a <p> with class=\"contact-info\" for contact information\n"
         "5. Use <h2> for section headings (like \"Experience\", \"Education\", \"Skills\")\n"
         "6. Use <p> for paragraphs of text\n"
         "7. Use <ul> and <li> for lists of skills, accomplishments, etc.\n"
         "8. Use <div class=\"section\"> to wrap each section\n"
-        "9. Use <div class=\"divider\"></div> to create separation between sections\n"
-        "10. Keep the HTML clean and simple - WeasyPrint will apply the styling via CSS\n\n"
+        "9. DO NOT use any links, images, tables, or complex formatting\n"
+        "10. DO NOT use any inline styles or CSS\n"
+        "11. DO NOT use any special characters or HTML entities that might cause issues\n"
+        "12. Keep the HTML extremely simple and clean\n\n"
 
         "Return ONLY the HTML document, with no additional text, explanations, or markdown formatting."
     )
@@ -110,6 +112,36 @@ def process_html_content(html_content):
             "</body>\n"
             "</html>"
         )
+
+    # Clean up any potential issues that might cause problems with ReportLab
+    html_content = clean_html_for_reportlab(html_content)
+
+    return html_content
+
+def clean_html_for_reportlab(html_content):
+    """Clean HTML content to make it more compatible with ReportLab."""
+    # Remove any <a> tags but keep their content
+    html_content = re.sub(r'<a[^>]*>(.*?)</a>', r'\1', html_content, flags=re.DOTALL)
+
+    # Remove any <style> tags and their content
+    html_content = re.sub(r'<style[^>]*>.*?</style>', '', html_content, flags=re.DOTALL)
+
+    # Remove any <script> tags and their content
+    html_content = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL)
+
+    # Remove any inline styles
+    html_content = re.sub(r' style="[^"]*"', '', html_content)
+
+    # Remove any class attributes except for "contact-info" and "section"
+    def clean_class(match):
+        if 'contact-info' in match.group(1) or 'section' in match.group(1):
+            return match.group(0)
+        return ''
+
+    html_content = re.sub(r' class="([^"]*)"', clean_class, html_content)
+
+    # Remove any other attributes that might cause issues
+    html_content = re.sub(r' (id|onclick|onload|href|src)="[^"]*"', '', html_content)
 
     return html_content
 
