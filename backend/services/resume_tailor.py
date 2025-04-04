@@ -29,9 +29,9 @@ def tailor_resume(resume_text, job_description):
         # Initialize the model
         model = genai.GenerativeModel('gemini-1.5-flash')
 
-        # Create the prompt
+        # Create the prompt with specific instructions for WeasyPrint-compatible HTML
         prompt = f"""
-        I need you to tailor a resume for a specific job.
+        I need you to tailor a resume for a specific job and output it in HTML format that will be converted to PDF using WeasyPrint.
 
         Here is the original resume:
         {resume_text}
@@ -46,52 +46,49 @@ def tailor_resume(resume_text, job_description):
         3. Adjusting the summary/objective to match the job
         4. Prioritizing relevant experience
 
-        Return the result as clean HTML that can be rendered in a browser and converted to PDF.
-        Use appropriate HTML tags for structure:
-        - Use <h1> for the name
-        - Use <p> for contact information
-        - Use <h2> for section headings (like "Experience", "Education", "Skills")
-        - Use <p> for paragraphs
-        - Use <ul> and <li> for lists
+        IMPORTANT: Return a complete, well-structured HTML document that WeasyPrint can render properly.
 
-        Do not include any explanations or notes, just the formatted HTML content of the tailored resume.
-        """
+        Follow these specific guidelines for the HTML:
+        1. Include a proper DOCTYPE, <html>, <head>, and <body> tags
+        2. Use semantic HTML5 elements
+        3. Use <h1> for the name at the top of the resume
+        4. Use a <p> with class="contact-info" for contact information
+        5. Use <h2> for section headings (like "Experience", "Education", "Skills")
+        6. Use <p> for paragraphs of text
+        7. Use <ul> and <li> for lists of skills, accomplishments, etc.
+        8. Use <div class="section"> to wrap each section
+        9. Use <div class="divider"></div> to create separation between sections
+        10. Keep the HTML clean and simple - WeasyPrint will apply the styling via CSS
 
-        # Generate the tailored resume
-        response = model.generate_content(prompt)
+        Example structure:
+        ```html
+        &lt;!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Tailored Resume</title>
+        </head>
+        <body>
+            <h1>John Doe</h1>
+            <p class="contact-info">email@example.com | (123) 456-7890 | City, State</p>
 
-        # Extract the HTML content
-        html_content = response.text
+            <div class="section">
+                <h2>Professional Summary</h2>
+                <p>Experienced professional with expertise in...</p>
+            </div>
 
-        # Check if the content is wrapped in code blocks and extract it
-        if "\`\`\`html" in html_content and "\`\`\`" in html_content:
-            # Extract content between \`\`\`html and \`\`\`
-            match = re.search(r'\`\`\`html\s*(.*?)\s*\`\`\`', html_content, re.DOTALL)
-            if match:
-                html_content = match.group(1)
+            <div class="divider"></div>
 
-        # Ensure the content has basic HTML structure
-        if not html_content.strip().startswith('<'):
-            # If it's not HTML, wrap it in basic HTML tags
-            html_content = f"<h1>Tailored Resume</h1><p>{html_content}</p>"
+            <div class="section">
+                <h2>Experience</h2>
+                <p><strong>Company Name</strong> - Position Title (Date - Date)</p>
+                <ul>
+                    <li>Accomplishment 1...</li>
+                    <li>Accomplishment 2...</li>
+                </ul>
+            </div>
 
-        # Add basic HTML structure if not present
-        if "<html" not in html_content:
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Tailored Resume</title>
-            </head>
-            <body>
-                {html_content}
-            </body>
-            </html>
-            """
-
-        return html_content
-
-    except Exception as e:
-        raise Exception(f"Error tailoring resume with Gemini: {str(e)}")
+            &lt;!-- Additional sections... -->
+        </body>
+        </html>
 
