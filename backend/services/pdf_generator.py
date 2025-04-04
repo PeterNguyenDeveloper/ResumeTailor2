@@ -1,16 +1,17 @@
-from weasyprint import HTML
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListItem, ListFlowable, HRFlowable
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
 import os
 import uuid
-import tempfile
+import re
+import html
 import traceback
-import logging
-
-# Configure WeasyPrint logging
-logging.getLogger('weasyprint').setLevel(logging.ERROR)
 
 def generate_pdf(html_content, template):
     """
-    Generate a PDF from HTML content using WeasyPrint.
+    Generate a PDF from HTML content using ReportLab.
 
     Args:
         html_content (str): HTML content of the tailored resume
@@ -28,264 +29,303 @@ def generate_pdf(html_content, template):
         pdf_filename = f"{uuid.uuid4()}_resume.pdf"
         output_path = os.path.join(output_dir, pdf_filename)
 
-        # Get CSS for the selected template
-        css_content = get_template_css(template)
+        # Parse the HTML content to extract structured data
+        parsed_content = parse_html_content(html_content)
 
-        # Ensure the HTML has proper structure and embedded CSS
-        if "<html" not in html_content:
-            html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Tailored Resume</title>
-    <style>
-{css_content}
-    </style>
-</head>
-<body>
-    {html_content}
-</body>
-</html>"""
-        else:
-            # If HTML already has structure, inject the CSS
-            html_content = html_content.replace('</head>', f'<style>{css_content}</style></head>')
+        # Create the PDF document
+        doc = SimpleDocTemplate(
+            output_path,
+            pagesize=letter,
+            leftMargin=72,  # 1 inch
+            rightMargin=72,
+            topMargin=72,
+            bottomMargin=72
+        )
 
-        # Create a temporary file for the complete HTML with CSS
-        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as html_file:
-            html_file.write(html_content)
-            html_path = html_file.name
+        # Get styles based on the template
+        styles = get_template_styles(template)
 
-        try:
-            # Use the most basic approach with WeasyPrint
-            HTML(filename=html_path).write_pdf(output_path)
+        # Build the PDF content
+        elements = []
 
-            # Verify the PDF was created successfully
-            if not os.path.exists(output_path):
-                raise Exception(f"PDF file was not created at {output_path}")
+        # Add name (h1)
+        if parsed_content.get('name'):
+            elements.append(Paragraph(parsed_content['name'], styles['name']))
+            elements.append(Spacer(1, 6))
 
-            if os.path.getsize(output_path) < 100:
-                raise Exception(f"Generated PDF is too small ({os.path.getsize(output_path)} bytes)")
+        # Add contact info
+        if parsed_content.get('contact_info'):
+            elements.append(Paragraph(parsed_content['contact_info'], styles['contact_info']))
+            elements.append(Spacer(1, 12))
 
-            return output_path
+        # Add sections
+        for section in parsed_content.get('sections', []):
+            # Add section heading
+            if section.get('heading'):
+                elements.append(Paragraph(section['heading'], styles['heading']))
+                elements.append(Spacer(1, 6))
 
-        except Exception as e:
-            error_msg = str(e)
-            raise Exception(f"WeasyPrint error: {error_msg}")
+            # Add section content
+            for content in section.get('content', []):
+                if content['type'] == 'paragraph':
+                    elements.append(Paragraph(content['text'], styles['normal']))
+                    elements.append(Spacer(1, 6))
+                elif content['type'] == 'list':
+                    list_items = []
+                    for item in content['items']:
+                        list_items.append(ListItem(Paragraph(item, styles['list_item'])))
+                    elements.append(ListFlowable(list_items, bulletType='bullet', leftIndent=20))
+                    elements.append(Spacer(1, 6))
 
-        finally:
-            # Clean up temporary file
-            if os.path.exists(html_path):
-                try:
-                    os.remove(html_path)
-                except:
-                    pass
+            # Add divider after section
+            elements.append(HRFlowable(width="100%", thickness=1, color=styles['divider_color'], spaceBefore=6, spaceAfter=12))
+
+        # Build the PDF
+        doc.build(elements)
+
+        # Verify the PDF was created successfully
+        if not os.path.exists(output_path):
+            raise Exception(f"PDF file was not created at {output_path}")
+
+        if os.path.getsize(output_path) < 100:
+            raise Exception(f"Generated PDF is too small ({os.path.getsize(output_path)} bytes)")
+
+        return output_path
 
     except Exception as e:
         error_details = traceback.format_exc()
         raise Exception(f"Error generating PDF: {str(e)}\n{error_details}")
 
-def get_template_css(template):
+def parse_html_content(html_content):
     """
-    Get the CSS styles for the selected template.
+    Parse the HTML content to extract structured data for ReportLab.
+
+    Args:
+        html_content (str): HTML content
+
+    Returns:
+        dict: Structured data extracted from HTML
+    """
+    result = {
+        'name': '',
+        'contact_info': '',
+        'sections': []
+    }
+
+    # Extract content between <body> tags if present
+    body_match = re.search(r'<body>(.*?)</body>', html_content, re.DOTALL | re.IGNORECASE)
+    if body_match:
+        html_content = body_match.group(1)
+
+    # Extract name (h1)
+    name_match = re.search(r'<h1>(.*?)</h1>', html_content, re.DOTALL | re.IGNORECASE)
+    if name_match:
+        result['name'] = html.unescape(name_match.group(1).strip())
+
+    # Extract contact info
+    contact_match = re.search(r'<p class="contact-info">(.*?)</p>', html_content, re.DOTALL | re.IGNORECASE)
+    if contact_match:
+        result['contact_info'] = html.unescape(contact_match.group(1).strip())
+
+    # Extract sections
+    section_pattern = r'<div class="section">(.*?)</div>'
+    section_matches = re.finditer(section_pattern, html_content, re.DOTALL | re.IGNORECASE)
+
+    for section_match in section_matches:
+        section_content = section_match.group(1)
+        section = {'heading': '', 'content': []}
+
+        # Extract section heading
+        heading_match = re.search(r'<h2>(.*?)</h2>', section_content, re.DOTALL | re.IGNORECASE)
+        if heading_match:
+            section['heading'] = html.unescape(heading_match.group(1).strip())
+
+        # Extract paragraphs
+        paragraph_pattern = r'<p(?:\s+[^>]*)?>(.*?)</p>'
+        paragraph_matches = re.finditer(paragraph_pattern, section_content, re.DOTALL | re.IGNORECASE)
+
+        for paragraph_match in paragraph_matches:
+            paragraph_text = paragraph_match.group(1).strip()
+            if 'class="contact-info"' not in paragraph_match.group(0):  # Skip contact info
+                section['content'].append({
+                    'type': 'paragraph',
+                    'text': html.unescape(paragraph_text)
+                })
+
+        # Extract lists
+        list_pattern = r'<ul>(.*?)</ul>'
+        list_matches = re.finditer(list_pattern, section_content, re.DOTALL | re.IGNORECASE)
+
+        for list_match in list_matches:
+            list_content = list_match.group(1)
+            list_items = []
+
+            item_pattern = r'<li>(.*?)</li>'
+            item_matches = re.finditer(item_pattern, list_content, re.DOTALL | re.IGNORECASE)
+
+            for item_match in item_matches:
+                list_items.append(html.unescape(item_match.group(1).strip()))
+
+            if list_items:
+                section['content'].append({
+                    'type': 'list',
+                    'items': list_items
+                })
+
+        result['sections'].append(section)
+
+    return result
+
+def get_template_styles(template):
+    """
+    Get the styles for the selected template.
 
     Args:
         template (str): Template name
 
     Returns:
-        str: CSS styles for the template
+        dict: Styles for the template
     """
-    # Base styles for all templates
-    base_css = """
-@page {
-    size: letter;
-    margin: 0.75in 0.75in 0.75in 0.75in;
-}
+    # Get base styles
+    styles = getSampleStyleSheet()
 
-* {
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Times New Roman', serif;
-    margin: 0;
-    padding: 0;
-    color: #333;
-    line-height: 1.5;
-    font-size: 10pt;
-}
-
-h1 {
-    margin-top: 0;
-    margin-bottom: 0.3em;
-    text-align: center;
-    font-size: 16pt;
-}
-
-h2 {
-    margin-top: 1em;
-    margin-bottom: 0.5em;
-    border-bottom: 1px solid #ddd;
-    padding-bottom: 0.2em;
-    font-size: 12pt;
-}
-
-p {
-    margin: 0.5em 0;
-    text-align: justify;
-}
-
-ul {
-    margin: 0.5em 0;
-    padding-left: 1.5em;
-}
-
-li {
-    margin-bottom: 0.25em;
-}
-
-.contact-info {
-    text-align: center;
-    font-size: 9pt;
-    margin-bottom: 1em;
-}
-
-.section {
-    margin-bottom: 1em;
-}
-
-.divider {
-    border-top: 1px solid #ddd;
-    margin: 1em 0;
-}
-
-strong, b {
-    font-weight: bold;
-}
-
-em, i {
-    font-style: italic;
-}"""
+    # Common styles
+    result = {
+        'normal': styles['Normal'],
+        'list_item': styles['Normal'],
+        'divider_color': colors.gray
+    }
 
     # Template-specific styles
     if template == 'professional':
-        return base_css + """
-body {
-    font-family: Arial, Helvetica, sans-serif;
-}
+        result['name'] = ParagraphStyle(
+            'Name',
+            parent=styles['Title'],
+            fontSize=16,
+            textColor=colors.Color(0.17, 0.24, 0.31),  # #2c3e50
+            alignment=TA_CENTER
+        )
+        result['contact_info'] = ParagraphStyle(
+            'ContactInfo',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER
+        )
+        result['heading'] = ParagraphStyle(
+            'Heading',
+            parent=styles['Heading2'],
+            fontSize=12,
+            textColor=colors.Color(0.16, 0.5, 0.73),  # #2980b9
+            borderWidth=1,
+            borderColor=colors.Color(0.2, 0.6, 0.86),  # #3498db
+            borderPadding=(0, 0, 2, 0)
+        )
+        result['divider_color'] = colors.Color(0.2, 0.6, 0.86)  # #3498db
 
-h1 {
-    color: #2c3e50;
-    font-size: 16pt;
-}
-
-h2 {
-    color: #2980b9;
-    font-size: 12pt;
-    border-bottom: 1px solid #3498db;
-}
-
-.divider {
-    border-top: 1px solid #3498db;
-}
-
-.section {
-    margin-bottom: 1.2em;
-}"""
     elif template == 'creative':
-        return base_css + """
-body {
-    font-family: Georgia, serif;
-}
+        result['name'] = ParagraphStyle(
+            'Name',
+            parent=styles['Title'],
+            fontSize=18,
+            textColor=colors.Color(0.55, 0.27, 0.68),  # #8e44ad
+            alignment=TA_CENTER,
+            textTransform='uppercase',
+            letterSpacing=2
+        )
+        result['contact_info'] = ParagraphStyle(
+            'ContactInfo',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER
+        )
+        result['heading'] = ParagraphStyle(
+            'Heading',
+            parent=styles['Heading2'],
+            fontSize=13,
+            textColor=colors.Color(0.83, 0.33, 0),  # #d35400
+            textTransform='uppercase',
+            letterSpacing=1,
+            borderWidth=1,
+            borderColor=colors.Color(0.9, 0.49, 0.13),  # #e67e22
+            borderPadding=(0, 0, 2, 0)
+        )
+        result['divider_color'] = colors.Color(0.83, 0.33, 0)  # #d35400
 
-h1 {
-    color: #8e44ad;
-    font-size: 18pt;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-h2 {
-    color: #d35400;
-    font-size: 13pt;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    border-bottom: 1px solid #e67e22;
-}
-
-.divider {
-    border-top: 1px solid #d35400;
-}
-
-.section {
-    margin-bottom: 1.5em;
-}"""
     elif template == 'minimal':
-        return base_css + """
-body {
-    font-family: Helvetica, Arial, sans-serif;
-    font-weight: 300;
-    line-height: 1.4;
-}
+        result['name'] = ParagraphStyle(
+            'Name',
+            parent=styles['Title'],
+            fontSize=14,
+            textColor=colors.Color(0.2, 0.2, 0.2),  # #333
+            alignment=TA_CENTER,
+            letterSpacing=1
+        )
+        result['contact_info'] = ParagraphStyle(
+            'ContactInfo',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER
+        )
+        result['heading'] = ParagraphStyle(
+            'Heading',
+            parent=styles['Heading2'],
+            fontSize=11,
+            textColor=colors.Color(0.33, 0.33, 0.33),  # #555
+            letterSpacing=0.5,
+            borderWidth=1,
+            borderColor=colors.Color(0.87, 0.87, 0.87),  # #ddd
+            borderPadding=(0, 0, 2, 0)
+        )
+        result['normal'] = ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            fontSize=9
+        )
+        result['list_item'] = ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=9
+        )
+        result['divider_color'] = colors.Color(0.87, 0.87, 0.87)  # #ddd
 
-h1 {
-    color: #333;
-    font-size: 14pt;
-    font-weight: 400;
-    letter-spacing: 1px;
-}
-
-h2 {
-    color: #555;
-    font-size: 11pt;
-    font-weight: 400;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid #ddd;
-}
-
-p, li {
-    font-size: 9pt;
-}
-
-.divider {
-    border-top: 1px solid #ddd;
-}
-
-.section {
-    margin-bottom: 1em;
-}"""
     elif template == 'executive':
-        return base_css + """
-body {
-    font-family: 'Times New Roman', serif;
-    line-height: 1.6;
-}
+        result['name'] = ParagraphStyle(
+            'Name',
+            parent=styles['Title'],
+            fontSize=18,
+            textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            alignment=TA_CENTER,
+            textTransform='uppercase',
+            borderWidth=3,
+            borderColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            borderPadding=(0, 0, 3, 0),
+            borderStyle='double'
+        )
+        result['contact_info'] = ParagraphStyle(
+            'ContactInfo',
+            parent=styles['Normal'],
+            fontSize=9,
+            alignment=TA_CENTER
+        )
+        result['heading'] = ParagraphStyle(
+            'Heading',
+            parent=styles['Heading2'],
+            fontSize=13,
+            textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            borderWidth=1,
+            borderColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            borderPadding=(0, 0, 2, 0)
+        )
+        result['normal'] = ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            alignment=TA_JUSTIFY
+        )
+        result['divider_color'] = colors.Color(0.1, 0.1, 0.1)  # #1a1a1a
 
-h1 {
-    color: #1a1a1a;
-    font-size: 18pt;
-    border-bottom: 3px double #1a1a1a;
-    padding-bottom: 0.3em;
-    text-transform: uppercase;
-}
-
-h2 {
-    color: #1a1a1a;
-    font-size: 13pt;
-    border-bottom: 1px solid #1a1a1a;
-}
-
-.divider {
-    border-top: 1px solid #1a1a1a;
-}
-
-.section {
-    margin-bottom: 1.5em;
-}
-
-strong, b {
-    font-weight: bold;
-}"""
     else:
         # Default to professional if template not found
-        return get_template_css('professional')
+        return get_template_styles('professional')
+
+    return result
 
