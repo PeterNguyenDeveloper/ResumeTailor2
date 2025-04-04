@@ -6,7 +6,7 @@ import re
 
 # Helper function to get timestamp for print statements
 def get_timestamp():
-  return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # In a real application, you would get this from environment variables
 API_KEY = os.environ.get("GEMINI_API_KEY", "your_api_key_here")
@@ -27,68 +27,89 @@ def tailor_resume(resume_text, job_description):
     """
     try:
         # Initialize the model
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
-        # Create the prompt with specific instructions for WeasyPrint-compatible HTML
-        prompt = f"""
-        I need you to tailor a resume for a specific job and output it in HTML format that will be converted to PDF using WeasyPrint.
+        # Create the prompt
+        prompt = create_prompt(resume_text, job_description)
 
-        Here is the original resume:
-        {resume_text}
+        # Generate the tailored resume
+        response = model.generate_content(prompt)
 
-        Here is the job description:
-        {job_description}
+        # Extract the HTML content
+        html_content = response.text
 
-        Please analyze the job description and modify the resume to highlight relevant skills and experiences.
-        Focus on:
-        1. Matching keywords from the job description
-        2. Highlighting relevant accomplishments
-        3. Adjusting the summary/objective to match the job
-        4. Prioritizing relevant experience
+        # Process the HTML content
+        html_content = process_html_content(html_content)
 
-        IMPORTANT: Return a complete, well-structured HTML document that WeasyPrint can render properly.
+        return html_content
 
-        Follow these specific guidelines for the HTML:
-        1. Include a proper DOCTYPE, <html>, <head>, and <body> tags
-        2. Use semantic HTML5 elements
-        3. Use <h1> for the name at the top of the resume
-        4. Use a <p> with class="contact-info" for contact information
-        5. Use <h2> for section headings (like "Experience", "Education", "Skills")
-        6. Use <p> for paragraphs of text
-        7. Use <ul> and <li> for lists of skills, accomplishments, etc.
-        8. Use <div class="section"> to wrap each section
-        9. Use <div class="divider"></div> to create separation between sections
-        10. Keep the HTML clean and simple - WeasyPrint will apply the styling via CSS
+    except Exception as e:
+        raise Exception(f"Error tailoring resume with Gemini: {str(e)}")
 
-        Example structure:
-        ```html
-        &lt;!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Tailored Resume</title>
-        </head>
-        <body>
-            <h1>John Doe</h1>
-            <p class="contact-info">email@example.com | (123) 456-7890 | City, State</p>
+def create_prompt(resume_text, job_description):
+    """Create the prompt for Gemini AI."""
+    prompt = (
+        "I need you to tailor a resume for a specific job and output it in HTML format "
+        "that will be converted to PDF using WeasyPrint.\n\n"
 
-            <div class="section">
-                <h2>Professional Summary</h2>
-                <p>Experienced professional with expertise in...</p>
-            </div>
+        f"Here is the original resume:\n{resume_text}\n\n"
 
-            <div class="divider"></div>
+        f"Here is the job description:\n{job_description}\n\n"
 
-            <div class="section">
-                <h2>Experience</h2>
-                <p><strong>Company Name</strong> - Position Title (Date - Date)</p>
-                <ul>
-                    <li>Accomplishment 1...</li>
-                    <li>Accomplishment 2...</li>
-                </ul>
-            </div>
+        "Please analyze the job description and modify the resume to highlight relevant skills and experiences.\n"
+        "Focus on:\n"
+        "1. Matching keywords from the job description\n"
+        "2. Highlighting relevant accomplishments\n"
+        "3. Adjusting the summary/objective to match the job\n"
+        "4. Prioritizing relevant experience\n\n"
 
-            &lt;!-- Additional sections... -->
-        </body>
-        </html>
+        "IMPORTANT: Return a complete, well-structured HTML document that WeasyPrint can render properly.\n\n"
+
+        "Follow these specific guidelines for the HTML:\n"
+        "1. Include a proper DOCTYPE, <html>, <head>, and <body> tags\n"
+        "2. Use semantic HTML5 elements\n"
+        "3. Use <h1> for the name at the top of the resume\n"
+        "4. Use a <p> with class=\"contact-info\" for contact information\n"
+        "5. Use <h2> for section headings (like \"Experience\", \"Education\", \"Skills\")\n"
+        "6. Use <p> for paragraphs of text\n"
+        "7. Use <ul> and <li> for lists of skills, accomplishments, etc.\n"
+        "8. Use <div class=\"section\"> to wrap each section\n"
+        "9. Use <div class=\"divider\"></div> to create separation between sections\n"
+        "10. Keep the HTML clean and simple - WeasyPrint will apply the styling via CSS\n\n"
+
+        "Return ONLY the HTML document, with no additional text, explanations, or markdown formatting."
+    )
+    return prompt
+
+def process_html_content(html_content):
+    """Process and clean up the HTML content from Gemini."""
+    # Check if the content is wrapped in code blocks and extract it
+    if "```html" in html_content and "```" in html_content:
+        # Extract content between ```html and ```
+        match = re.search(r'```html\s*(.*?)\s*```', html_content, re.DOTALL)
+        if match:
+            html_content = match.group(1)
+    elif "```" in html_content:
+        # Extract content between ``` and ```
+        match = re.search(r'```\s*(.*?)\s*```', html_content, re.DOTALL)
+        if match:
+            html_content = match.group(1)
+
+    # Ensure the content has basic HTML structure
+    if not html_content.strip().startswith('<!DOCTYPE') and not html_content.strip().startswith('<html'):
+        # If it's not a complete HTML document, wrap it in proper HTML structure
+        html_content = (
+            "<!DOCTYPE html>\n"
+            "<html>\n"
+            "<head>\n"
+            "    <meta charset=\"UTF-8\">\n"
+            "    <title>Tailored Resume</title>\n"
+            "</head>\n"
+            "<body>\n"
+            f"{html_content}\n"
+            "</body>\n"
+            "</html>"
+        )
+
+    return html_content
 
