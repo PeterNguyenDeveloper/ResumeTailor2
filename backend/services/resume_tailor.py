@@ -21,7 +21,7 @@ def tailor_resume(resume_text, job_description):
     """
     try:
         # Initialize the model
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-pro-exp-03-25')
 
         # Create the prompt
         prompt = f"""
