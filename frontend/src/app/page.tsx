@@ -1,199 +1,221 @@
 "use client"
 
-import { useState } from "react"
-import UploadForm from "@/components/upload-form"
-import TemplateSelector from "@/components/template-selector"
-import Preview from "@/components/preview"
-import { Loader2 } from "lucide-react"
+import type React from "react"
+
+import { useState, useRef } from "react"
+import { Loader2, Upload, FileText, Download } from "lucide-react"
 
 export default function Home() {
-  const [step, setStep] = useState(1)
-  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [file, setFile] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState("")
-  const [selectedTemplate, setSelectedTemplate] = useState("professional")
-  const [tailoredResume, setTailoredResume] = useState<string | null>(null)
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [template, setTemplate] = useState("professional")
+  const [isLoading, setIsLoading] = useState(false)
+  const [tailoredContent, setTailoredContent] = useState("")
+  const [pdfUrl, setPdfUrl] = useState("")
+  const [error, setError] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleResumeUpload = (file: File) => {
-    setResumeFile(file)
-    setStep(2)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0])
+    }
   }
 
-  const handleJobDescriptionSubmit = (description: string) => {
-    setJobDescription(description)
-    setStep(3)
+  const showToast = (message: string, type: "success" | "error") => {
+    setError(type === "error" ? message : "")
+    // For a real toast, you would implement a toast component or use a library
+    alert(message)
   }
 
-  const handleTemplateSelect = (template: string) => {
-    setSelectedTemplate(template)
-    setStep(4)
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-  const handleGenerateResume = async () => {
-    if (!resumeFile || !jobDescription) {
-      setError("Please upload a resume and provide a job description")
+    if (!file) {
+      showToast("Please upload your resume PDF first.", "error")
       return
     }
 
-    setLoading(true)
-    setError(null)
+    if (!jobDescription) {
+      showToast("Please enter a job description to tailor your resume.", "error")
+      return
+    }
 
-    const formData = new FormData()
-    formData.append("resume", resumeFile)
-    formData.append("job_description", jobDescription)
-    formData.append("template", selectedTemplate)
+    setIsLoading(true)
+    setTailoredContent("")
+    setPdfUrl("")
+    setError("")
 
     try {
-      const response = await fetch("/api/tailor-resume", {
+      const formData = new FormData()
+      formData.append("resume", file)
+      formData.append("job_description", jobDescription)
+      formData.append("template", template)
+
+      const response = await fetch("http://localhost:5000/api/tailor-resume", {
         method: "POST",
         body: formData,
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        console.log(response)
-        throw new Error("Failed to generate resume")
+        throw new Error(data.error || "Failed to tailor resume")
       }
 
-      const data = await response.json()
-      setTailoredResume(data.content)
+      setTailoredContent(data.content)
       setPdfUrl(data.pdf_url)
-    } catch (err) {
-      setError("An error occurred while generating your resume. Please try again.")
-      console.error(err)
+
+      showToast("Your resume has been tailored to the job description.", "success")
+    } catch (error) {
+      console.error("Error:", error)
+      showToast(error instanceof Error ? error.message : "An unexpected error occurred", "error")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const resetForm = () => {
-    setResumeFile(null)
-    setJobDescription("")
-    setSelectedTemplate("professional")
-    setTailoredResume(null)
-    setPdfUrl(null)
-    setStep(1)
+  const handleDownload = () => {
+    if (pdfUrl) {
+      // Create a full URL to the backend endpoint
+      const fullUrl = `http://localhost:5000${pdfUrl}`
+
+      // Open the URL in a new tab/window
+      window.open(fullUrl, "_blank")
+    }
   }
 
   return (
-      <main className="min-h-screen bg-gray-50">
-        <div className="container mx-auto px-4 py-12">
-          <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">Resume Tailor</h1>
-          <p className="text-center text-gray-600 mb-12 max-w-2xl mx-auto">
-            Upload your resume, add a job description, and select a template to get a tailored resume that matches the job
-            requirements.
-          </p>
+      <main className="container mx-auto py-10 px-4">
+        <h1 className="text-3xl font-bold text-center mb-8">Resume Tailoring Tool</h1>
 
-          <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              <p>{error}</p>
+            </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Upload Form Card */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-semibold">Upload Your Resume</h2>
+              <p className="text-gray-500 text-sm mt-1">Upload your resume and enter the job description to tailor it.</p>
+            </div>
             <div className="p-6">
-              <div className="flex justify-between mb-8">
-                {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={`flex flex-col items-center ${i <= step ? "text-blue-600" : "text-gray-400"}`}>
-                      <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${i <= step ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-400"}`}
-                      >
-                        {i}
-                      </div>
-                      <span className="text-sm">
-                    {i === 1 && "Upload Resume"}
-                        {i === 2 && "Job Description"}
-                        {i === 3 && "Select Template"}
-                        {i === 4 && "Preview & Download"}
-                  </span>
-                    </div>
-                ))}
-              </div>
-
-              {step === 1 && <UploadForm onUpload={handleResumeUpload} />}
-
-              {step === 2 && (
-                  <div className="space-y-4">
-                    <h2 className="text-2xl font-semibold text-gray-800">Enter Job Description</h2>
-                    <p className="text-gray-600">
-                      Paste the job description to tailor your resume for this specific position.
-                    </p>
-                    <textarea
-                        className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Paste job description here..."
-                        value={jobDescription}
-                        onChange={(e) => setJobDescription(e.target.value)}
-                    ></textarea>
-                    <div className="flex justify-between">
-                      <button
-                          onClick={() => setStep(1)}
-                          className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-                      >
-                        Back
-                      </button>
-                      <button
-                          onClick={() => handleJobDescriptionSubmit(jobDescription)}
-                          disabled={!jobDescription.trim()}
-                          className={`px-6 py-2 rounded-lg transition ${
-                              !jobDescription.trim()
-                                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                                  : "bg-blue-600 text-white hover:bg-blue-700"
-                          }`}
-                      >
-                        Continue
-                      </button>
-                    </div>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <label htmlFor="resume" className="block text-sm font-medium text-gray-700">
+                    Resume (PDF)
+                  </label>
+                  <div
+                      className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-gray-50"
+                      onClick={() => fileInputRef.current?.click()}
+                  >
+                    <input
+                        id="resume"
+                        type="file"
+                        accept=".pdf"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                    />
+                    {file ? (
+                        <div className="flex items-center justify-center space-x-2">
+                          <FileText className="h-6 w-6 text-gray-500" />
+                          <span className="text-sm text-gray-500">{file.name}</span>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center">
+                          <Upload className="h-10 w-10 text-gray-300 mb-2" />
+                          <span className="text-sm text-gray-500">Click to upload or drag and drop</span>
+                          <span className="text-xs text-gray-400 mt-1">PDF files only</span>
+                        </div>
+                    )}
                   </div>
-              )}
+                </div>
 
-              {step === 3 && (
-                  <TemplateSelector
-                      onSelect={handleTemplateSelect}
-                      selectedTemplate={selectedTemplate}
-                      onBack={() => setStep(2)}
+                <div className="space-y-2">
+                  <label htmlFor="jobDescription" className="block text-sm font-medium text-gray-700">
+                    Job Description
+                  </label>
+                  <textarea
+                      id="jobDescription"
+                      placeholder="Paste the job description here..."
+                      value={jobDescription}
+                      onChange={(e) => setJobDescription(e.target.value)}
+                      rows={8}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
-              )}
+                </div>
 
-              {step === 4 && (
-                  <div className="space-y-6">
-                    <h2 className="text-2xl font-semibold text-gray-800">Preview & Generate</h2>
+                <div className="space-y-2">
+                  <label htmlFor="template" className="block text-sm font-medium text-gray-700">
+                    Resume Template
+                  </label>
+                  <select
+                      id="template"
+                      value={template}
+                      onChange={(e) => setTemplate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="creative">Creative</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="executive">Executive</option>
+                  </select>
+                </div>
 
-                    {!tailoredResume && !loading && (
-                        <div className="text-center p-8 bg-gray-50 rounded-lg">
-                          <p className="text-gray-600 mb-4">Ready to generate your tailored resume?</p>
-                          <button
-                              onClick={handleGenerateResume}
-                              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                          >
-                            Generate Resume
-                          </button>
-                        </div>
-                    )}
+                <button
+                    type="submit"
+                    disabled={isLoading}
+                    className={`w-full py-2 px-4 rounded-md text-white font-medium ${
+                        isLoading ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                    }`}
+                >
+                  {isLoading ? (
+                      <span className="flex items-center justify-center">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Tailoring Resume...
+                  </span>
+                  ) : (
+                      "Tailor Resume"
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
 
-                    {loading && (
-                        <div className="flex flex-col items-center justify-center p-12">
-                          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-                          <p className="text-gray-600">Generating your tailored resume...</p>
-                          <p className="text-gray-500 text-sm mt-2">This may take a minute or two.</p>
-                        </div>
-                    )}
-
-                    {error && <div className="p-4 bg-red-100 text-red-700 rounded-lg">{error}</div>}
-
-                    {tailoredResume && <Preview content={tailoredResume} pdfUrl={pdfUrl} template={selectedTemplate} />}
-
-                    <div className="flex justify-between">
-                      <button
-                          onClick={() => setStep(3)}
-                          className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-                      >
-                        Back
-                      </button>
-                      {tailoredResume && (
-                          <button
-                              onClick={resetForm}
-                              className="px-6 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
-                          >
-                            Start Over
-                          </button>
-                      )}
-                    </div>
+          {/* Results Card */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="p-6 border-b">
+              <h2 className="text-xl font-semibold">Tailored Resume</h2>
+              <p className="text-gray-500 text-sm mt-1">Preview of your tailored resume content.</p>
+            </div>
+            <div className="p-6">
+              {isLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
                   </div>
+              ) : tailoredContent ? (
+                  <div
+                      className="prose max-w-none h-64 overflow-y-auto border rounded-md p-4"
+                      dangerouslySetInnerHTML={{ __html: tailoredContent }}
+                  />
+              ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-400 border rounded-md">
+                    <p>Your tailored resume will appear here</p>
+                  </div>
+              )}
+            </div>
+            <div className="p-6 border-t">
+              {pdfUrl && (
+                  <button
+                      className="w-full py-2 px-4 border border-gray-300 rounded-md text-gray-700 font-medium flex items-center justify-center hover:bg-gray-50"
+                      onClick={handleDownload}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </button>
               )}
             </div>
           </div>

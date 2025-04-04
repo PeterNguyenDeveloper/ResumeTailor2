@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response, send_from_directory
 from flask_cors import CORS
 import os
 import tempfile
@@ -14,9 +14,11 @@ app = Flask(__name__)
 # Allow all origins for CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Create upload folder if it doesn't exist
+# Create necessary folders
 UPLOAD_FOLDER = 'uploads'
+PDF_FOLDER = 'generated_pdfs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PDF_FOLDER, exist_ok=True)
 
 # Add CORS headers to all responses
 @app.after_request
@@ -74,17 +76,18 @@ def tailor_resume_endpoint():
             # Generate PDF with the selected template
             try:
                 pdf_path = generate_pdf(tailored_content, template)
+                pdf_filename = os.path.basename(pdf_path)
             except Exception as pdf_error:
                 return jsonify({'error': f'Error generating PDF: {str(pdf_error)}'}), 500
 
-            # In a real app, you would upload this to a storage service
-            # and return a URL. For this example, we'll just return a placeholder.
-            pdf_url = f"/download/{os.path.basename(pdf_path)}"
+            # Create a download URL for the PDF
+            pdf_url = f"/api/download/{pdf_filename}"
 
             response_data = {
                 'success': True,
                 'content': tailored_content,
-                'pdf_url': pdf_url
+                'pdf_url': pdf_url,
+                'pdf_filename': pdf_filename
             }
             return jsonify(response_data)
 
@@ -99,11 +102,23 @@ def tailor_resume_endpoint():
     except Exception as outer_e:
         return jsonify({'error': f'Unexpected error: {str(outer_e)}'}), 500
 
-@app.route('/download/<filename>', methods=['GET'])
+@app.route('/api/download/<filename>', methods=['GET'])
 def download_file(filename):
-    # In a real app, you would serve the file from your storage service
-    # For this example, we'll just return a placeholder response
-    return jsonify({'message': 'File download endpoint'}), 200
+    """
+    Serve the generated PDF file for download.
+    """
+    try:
+        # Set the appropriate headers for a PDF download
+        response = send_from_directory(
+            PDF_FOLDER,
+            filename,
+            as_attachment=True,
+            mimetype='application/pdf'
+        )
+        response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        return response
+    except Exception as e:
+        return jsonify({'error': f'Error downloading file: {str(e)}'}), 500
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
