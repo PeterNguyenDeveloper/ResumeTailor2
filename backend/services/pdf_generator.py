@@ -658,79 +658,18 @@ def get_template_styles(template):
     # Get base styles
     styles = getSampleStyleSheet()
 
+    # Define color schemes for different templates
+    professional_color = colors.Color(0.16, 0.5, 0.73)  # #2980b9
+    creative_color = colors.Color(0.83, 0.33, 0)  # #d35400
+    minimal_color = colors.Color(0.33, 0.33, 0.33)  # #555
+    executive_color = colors.Color(0.1, 0.1, 0.1)  # #1a1a1a
+
     # Common styles
-    result = {
-        'normal': ParagraphStyle(
-            'Normal',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14
-        ),
-        'list_item': ParagraphStyle(
-            'ListItem',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14
-        ),
-        'exp_title': ParagraphStyle(
-            'ExpTitle',
-            parent=styles['Normal'],
-            fontSize=11,
-            leading=14,
-            fontName='Helvetica-Bold'
-        ),
-        'exp_company': ParagraphStyle(
-            'ExpCompany',
-            parent=styles['Normal'],
-            fontSize=11,
-            leading=14,
-            alignment=TA_RIGHT
-        ),
-        'exp_details': ParagraphStyle(
-            'ExpDetails',
-            parent=styles['Normal'],
-            fontSize=9,
-            leading=12,
-            textColor=colors.gray
-        ),
-        'edu_degree': ParagraphStyle(
-            'EduDegree',
-            parent=styles['Normal'],
-            fontSize=11,
-            leading=14,
-            fontName='Helvetica-Bold'
-        ),
-        'edu_institution': ParagraphStyle(
-            'EduInstitution',
-            parent=styles['Normal'],
-            fontSize=11,
-            leading=14,
-            alignment=TA_RIGHT
-        ),
-        'edu_details': ParagraphStyle(
-            'EduDetails',
-            parent=styles['Normal'],
-            fontSize=9,
-            leading=12,
-            textColor=colors.gray
-        ),
-        'skill_category': ParagraphStyle(
-            'SkillCategory',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14,
-            fontName='Helvetica-Bold'
-        ),
-        'skill_list': ParagraphStyle(
-            'SkillList',
-            parent=styles['Normal'],
-            fontSize=10,
-            leading=14
-        )
-    }
+    result = {}
 
     # Template-specific styles
     if template == 'professional':
+        # Name style
         result['name'] = ParagraphStyle(
             'Name',
             parent=styles['Title'],
@@ -740,6 +679,8 @@ def get_template_styles(template):
             fontName='Helvetica-Bold',
             spaceAfter=6
         )
+
+        # Contact info style
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
             parent=styles['Normal'],
@@ -747,21 +688,111 @@ def get_template_styles(template):
             alignment=TA_CENTER,
             textColor=colors.Color(0.33, 0.33, 0.33)
         )
+
+        # Heading style
         result['heading'] = ParagraphStyle(
             'Heading',
             parent=styles['Heading2'],
             fontSize=12,
-            textColor=colors.Color(0.16, 0.5, 0.73),  # #2980b9
+            textColor=professional_color,
             fontName='Helvetica-Bold',
             borderWidth=0,
             borderPadding=0,
             borderColor=colors.Color(0.2, 0.6, 0.86)  # #3498db
         )
-        result['exp_title']['textColor'] = colors.Color(0.16, 0.5, 0.73)  # #2980b9
-        result['edu_degree']['textColor'] = colors.Color(0.16, 0.5, 0.73)  # #2980b9
-        result['skill_category']['textColor'] = colors.Color(0.16, 0.5, 0.73)  # #2980b9
+
+        # Normal text style
+        result['normal'] = ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
+
+        # List item style
+        result['list_item'] = ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
+
+        # Experience title style
+        result['exp_title'] = ParagraphStyle(
+            'ExpTitle',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=professional_color
+        )
+
+        # Experience company style
+        result['exp_company'] = ParagraphStyle(
+            'ExpCompany',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Experience details style
+        result['exp_details'] = ParagraphStyle(
+            'ExpDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Education degree style
+        result['edu_degree'] = ParagraphStyle(
+            'EduDegree',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=professional_color
+        )
+
+        # Education institution style
+        result['edu_institution'] = ParagraphStyle(
+            'EduInstitution',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Education details style
+        result['edu_details'] = ParagraphStyle(
+            'EduDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Skill category style
+        result['skill_category'] = ParagraphStyle(
+            'SkillCategory',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=professional_color
+        )
+
+        # Skill list style
+        result['skill_list'] = ParagraphStyle(
+            'SkillList',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
 
     elif template == 'creative':
+        # Name style
         result['name'] = ParagraphStyle(
             'Name',
             parent=styles['Title'],
@@ -771,6 +802,8 @@ def get_template_styles(template):
             fontName='Times-Bold',
             spaceAfter=6
         )
+
+        # Contact info style
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
             parent=styles['Normal'],
@@ -778,21 +811,111 @@ def get_template_styles(template):
             alignment=TA_CENTER,
             textColor=colors.Color(0.33, 0.33, 0.33)
         )
+
+        # Heading style
         result['heading'] = ParagraphStyle(
             'Heading',
             parent=styles['Heading2'],
             fontSize=13,
-            textColor=colors.Color(0.83, 0.33, 0),  # #d35400
+            textColor=creative_color,
             fontName='Times-Bold',
             borderWidth=0,
             borderPadding=0,
             borderColor=colors.Color(0.9, 0.49, 0.13)  # #e67e22
         )
-        result['exp_title']['textColor'] = colors.Color(0.83, 0.33, 0)  # #d35400
-        result['edu_degree']['textColor'] = colors.Color(0.83, 0.33, 0)  # #d35400
-        result['skill_category']['textColor'] = colors.Color(0.83, 0.33, 0)  # #d35400
+
+        # Normal text style
+        result['normal'] = ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
+
+        # List item style
+        result['list_item'] = ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
+
+        # Experience title style
+        result['exp_title'] = ParagraphStyle(
+            'ExpTitle',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=creative_color
+        )
+
+        # Experience company style
+        result['exp_company'] = ParagraphStyle(
+            'ExpCompany',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Experience details style
+        result['exp_details'] = ParagraphStyle(
+            'ExpDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Education degree style
+        result['edu_degree'] = ParagraphStyle(
+            'EduDegree',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=creative_color
+        )
+
+        # Education institution style
+        result['edu_institution'] = ParagraphStyle(
+            'EduInstitution',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Education details style
+        result['edu_details'] = ParagraphStyle(
+            'EduDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Skill category style
+        result['skill_category'] = ParagraphStyle(
+            'SkillCategory',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=creative_color
+        )
+
+        # Skill list style
+        result['skill_list'] = ParagraphStyle(
+            'SkillList',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
 
     elif template == 'minimal':
+        # Name style
         result['name'] = ParagraphStyle(
             'Name',
             parent=styles['Title'],
@@ -802,6 +925,8 @@ def get_template_styles(template):
             fontName='Helvetica-Bold',
             spaceAfter=6
         )
+
+        # Contact info style
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
             parent=styles['Normal'],
@@ -809,39 +934,122 @@ def get_template_styles(template):
             alignment=TA_CENTER,
             textColor=colors.Color(0.4, 0.4, 0.4)
         )
+
+        # Heading style
         result['heading'] = ParagraphStyle(
             'Heading',
             parent=styles['Heading2'],
             fontSize=11,
-            textColor=colors.Color(0.33, 0.33, 0.33),  # #555
+            textColor=minimal_color,
             fontName='Helvetica-Bold',
             borderWidth=0,
             borderPadding=0,
             borderColor=colors.Color(0.87, 0.87, 0.87)  # #ddd
         )
+
+        # Normal text style
         result['normal'] = ParagraphStyle(
             'Normal',
             parent=styles['Normal'],
             fontSize=9,
             leading=12
         )
-        result['exp_title']['fontSize'] = 10
-        result['exp_company']['fontSize'] = 10
-        result['edu_degree']['fontSize'] = 10
-        result['edu_institution']['fontSize'] = 10
-        result['skill_category']['fontSize'] = 10
-        result['skill_list']['fontSize'] = 9
+
+        # List item style
+        result['list_item'] = ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12
+        )
+
+        # Experience title style
+        result['exp_title'] = ParagraphStyle(
+            'ExpTitle',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=minimal_color
+        )
+
+        # Experience company style
+        result['exp_company'] = ParagraphStyle(
+            'ExpCompany',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Experience details style
+        result['exp_details'] = ParagraphStyle(
+            'ExpDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Education degree style
+        result['edu_degree'] = ParagraphStyle(
+            'EduDegree',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=minimal_color
+        )
+
+        # Education institution style
+        result['edu_institution'] = ParagraphStyle(
+            'EduInstitution',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            alignment=TA_RIGHT
+        )
+
+        # Education details style
+        result['edu_details'] = ParagraphStyle(
+            'EduDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Skill category style
+        result['skill_category'] = ParagraphStyle(
+            'SkillCategory',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Helvetica-Bold',
+            textColor=minimal_color
+        )
+
+        # Skill list style
+        result['skill_list'] = ParagraphStyle(
+            'SkillList',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=14
+        )
 
     elif template == 'executive':
+        # Name style
         result['name'] = ParagraphStyle(
             'Name',
             parent=styles['Title'],
             fontSize=18,
-            textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            textColor=executive_color,
             alignment=TA_CENTER,
             fontName='Times-Bold',
             spaceAfter=6
         )
+
+        # Contact info style
         result['contact_info'] = ParagraphStyle(
             'ContactInfo',
             parent=styles['Normal'],
@@ -849,27 +1057,112 @@ def get_template_styles(template):
             alignment=TA_CENTER,
             textColor=colors.Color(0.2, 0.2, 0.2)
         )
+
+        # Heading style
         result['heading'] = ParagraphStyle(
             'Heading',
             parent=styles['Heading2'],
             fontSize=13,
-            textColor=colors.Color(0.1, 0.1, 0.1),  # #1a1a1a
+            textColor=executive_color,
             fontName='Times-Bold',
             borderWidth=0,
             borderPadding=0,
-            borderColor=colors.Color(0.1, 0.1, 0.1)  # #1a1a1a
+            borderColor=executive_color
         )
+
+        # Normal text style
         result['normal'] = ParagraphStyle(
             'Normal',
             parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
             alignment=TA_JUSTIFY
         )
-        result['exp_title']['fontName'] = 'Times-Bold'
-        result['exp_company']['fontName'] = 'Times-Roman'
-        result['edu_degree']['fontName'] = 'Times-Bold'
-        result['edu_institution']['fontName'] = 'Times-Roman'
-        result['skill_category']['fontName'] = 'Times-Bold'
-        result['skill_list']['fontName'] = 'Times-Roman'
+
+        # List item style
+        result['list_item'] = ParagraphStyle(
+            'ListItem',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14
+        )
+
+        # Experience title style
+        result['exp_title'] = ParagraphStyle(
+            'ExpTitle',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=executive_color
+        )
+
+        # Experience company style
+        result['exp_company'] = ParagraphStyle(
+            'ExpCompany',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Roman',
+            alignment=TA_RIGHT
+        )
+
+        # Experience details style
+        result['exp_details'] = ParagraphStyle(
+            'ExpDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Education degree style
+        result['edu_degree'] = ParagraphStyle(
+            'EduDegree',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=executive_color
+        )
+
+        # Education institution style
+        result['edu_institution'] = ParagraphStyle(
+            'EduInstitution',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=14,
+            fontName='Times-Roman',
+            alignment=TA_RIGHT
+        )
+
+        # Education details style
+        result['edu_details'] = ParagraphStyle(
+            'EduDetails',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.gray
+        )
+
+        # Skill category style
+        result['skill_category'] = ParagraphStyle(
+            'SkillCategory',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Times-Bold',
+            textColor=executive_color
+        )
+
+        # Skill list style
+        result['skill_list'] = ParagraphStyle(
+            'SkillList',
+            parent=styles['Normal'],
+            fontSize=10,
+            leading=14,
+            fontName='Times-Roman'
+        )
 
     else:
         # Default to professional if template not found
