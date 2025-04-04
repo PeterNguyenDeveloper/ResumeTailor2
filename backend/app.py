@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import os
+import sys
 import tempfile
 import uuid
 import json
@@ -11,9 +12,14 @@ from services.resume_tailor import tailor_resume
 from services.pdf_generator import generate_pdf
 import datetime
 
+# Force unbuffered output
+sys.stdout.reconfigure(line_buffering=True)
+
 # Helper function to get timestamp for print statements
 def get_timestamp():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+print(f"[{get_timestamp()}] STARTING APPLICATION - UNBUFFERED OUTPUT", flush=True)
 
 app = Flask(__name__)
 # Allow all origins for CORS
