@@ -1,9 +1,12 @@
 from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
 import os
 import uuid
 import tempfile
 import traceback
+import logging
+
+# Configure WeasyPrint logging
+logging.getLogger('weasyprint').setLevel(logging.ERROR)
 
 def generate_pdf(html_content, template):
     """
@@ -22,62 +25,50 @@ def generate_pdf(html_content, template):
         os.makedirs(output_dir, exist_ok=True)
 
         # Generate a unique filename
-        output_path = os.path.join(output_dir, f"{uuid.uuid4()}_resume.pdf")
+        pdf_filename = f"{uuid.uuid4()}_resume.pdf"
+        output_path = os.path.join(output_dir, pdf_filename)
 
         # Get CSS for the selected template
         css_content = get_template_css(template)
 
-        # Create a temporary CSS file
+        # Create a temporary file for the HTML content
+        with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as html_file:
+            html_file.write(html_content)
+            html_path = html_file.name
+
+        # Create a temporary file for the CSS content
         with tempfile.NamedTemporaryFile(suffix='.css', delete=False, mode='w', encoding='utf-8') as css_file:
             css_file.write(css_content)
             css_path = css_file.name
 
         try:
-            # Configure fonts
-            font_config = FontConfiguration()
+            # Generate the PDF using WeasyPrint
+            html = HTML(filename=html_path)
+            css = CSS(filename=css_path)
 
-            # Create CSS object
-            css = CSS(filename=css_path, font_config=font_config)
+            # Render the PDF
+            html.write_pdf(output_path, stylesheets=[css])
 
-            # Ensure the HTML has proper structure
-            if "<html" not in html_content:
-                html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Tailored Resume</title>
-                </head>
-                <body>
-                    {html_content}
-                </body>
-                </html>
-                """
+            # Verify the PDF was created successfully
+            if not os.path.exists(output_path):
+                raise Exception(f"PDF file was not created at {output_path}")
 
-            # Create a temporary HTML file
-            with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as html_file:
-                html_file.write(html_content)
-                html_path = html_file.name
-
-            # Generate PDF
-            HTML(filename=html_path).write_pdf(
-                output_path,
-                stylesheets=[css],
-                font_config=font_config
-            )
-
-            # Check if the PDF was created successfully
-            if not os.path.exists(output_path) or os.path.getsize(output_path) < 100:
-                raise Exception("Generated PDF is empty or invalid")
+            if os.path.getsize(output_path) < 100:
+                raise Exception(f"Generated PDF is too small ({os.path.getsize(output_path)} bytes)")
 
             return output_path
 
+        except Exception as e:
+            raise Exception(f"WeasyPrint error: {str(e)}")
+
         finally:
             # Clean up temporary files
-            if os.path.exists(css_path):
-                os.remove(css_path)
-            if os.path.exists(html_path):
-                os.remove(html_path)
+            for path in [html_path, css_path]:
+                if os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except:
+                        pass
 
     except Exception as e:
         error_details = traceback.format_exc()
@@ -97,7 +88,11 @@ def get_template_css(template):
     base_css = """
         @page {
             size: letter;
-            margin: 0.5in;
+            margin: 0.75in 0.75in 0.75in 0.75in;
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
@@ -106,17 +101,22 @@ def get_template_css(template):
             padding: 0;
             color: #333;
             line-height: 1.5;
+            font-size: 10pt;
         }
 
         h1 {
             margin-top: 0;
+            margin-bottom: 0.3em;
             text-align: center;
+            font-size: 16pt;
         }
 
         h2 {
             margin-top: 1em;
+            margin-bottom: 0.5em;
             border-bottom: 1px solid #ddd;
             padding-bottom: 0.2em;
+            font-size: 12pt;
         }
 
         p {
@@ -135,7 +135,7 @@ def get_template_css(template):
 
         .contact-info {
             text-align: center;
-            font-size: 0.9em;
+            font-size: 9pt;
             margin-bottom: 1em;
         }
 
@@ -147,46 +147,58 @@ def get_template_css(template):
             border-top: 1px solid #ddd;
             margin: 1em 0;
         }
+
+        strong, b {
+            font-weight: bold;
+        }
+
+        em, i {
+            font-style: italic;
+        }
     """
 
     # Template-specific styles
     if template == 'professional':
         return base_css + """
             body {
-                font-family: 'Arial', 'Helvetica', sans-serif;
+                font-family: Arial, Helvetica, sans-serif;
             }
 
             h1 {
                 color: #2c3e50;
-                font-size: 1.5em;
+                font-size: 16pt;
             }
 
             h2 {
                 color: #2980b9;
-                font-size: 1.2em;
+                font-size: 12pt;
                 border-bottom: 1px solid #3498db;
             }
 
             .divider {
                 border-top: 1px solid #3498db;
             }
+
+            .section {
+                margin-bottom: 1.2em;
+            }
         """
     elif template == 'creative':
         return base_css + """
             body {
-                font-family: 'Georgia', serif;
+                font-family: Georgia, serif;
             }
 
             h1 {
                 color: #8e44ad;
-                font-size: 1.6em;
+                font-size: 18pt;
                 text-transform: uppercase;
                 letter-spacing: 2px;
             }
 
             h2 {
                 color: #d35400;
-                font-size: 1.3em;
+                font-size: 13pt;
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 border-bottom: 1px solid #e67e22;
@@ -195,46 +207,56 @@ def get_template_css(template):
             .divider {
                 border-top: 1px solid #d35400;
             }
+
+            .section {
+                margin-bottom: 1.5em;
+            }
         """
     elif template == 'minimal':
         return base_css + """
             body {
-                font-family: 'Helvetica', 'Arial', sans-serif;
+                font-family: Helvetica, Arial, sans-serif;
                 font-weight: 300;
+                line-height: 1.4;
             }
 
             h1 {
                 color: #333;
-                font-size: 1.4em;
+                font-size: 14pt;
                 font-weight: 400;
                 letter-spacing: 1px;
             }
 
             h2 {
                 color: #555;
-                font-size: 1.1em;
+                font-size: 11pt;
                 font-weight: 400;
                 letter-spacing: 0.5px;
                 border-bottom: 1px solid #ddd;
             }
 
             p, li {
-                font-size: 0.9em;
+                font-size: 9pt;
             }
 
             .divider {
                 border-top: 1px solid #ddd;
+            }
+
+            .section {
+                margin-bottom: 1em;
             }
         """
     elif template == 'executive':
         return base_css + """
             body {
                 font-family: 'Times New Roman', serif;
+                line-height: 1.6;
             }
 
             h1 {
                 color: #1a1a1a;
-                font-size: 1.6em;
+                font-size: 18pt;
                 border-bottom: 3px double #1a1a1a;
                 padding-bottom: 0.3em;
                 text-transform: uppercase;
@@ -242,12 +264,20 @@ def get_template_css(template):
 
             h2 {
                 color: #1a1a1a;
-                font-size: 1.2em;
+                font-size: 13pt;
                 border-bottom: 1px solid #1a1a1a;
             }
 
             .divider {
                 border-top: 1px solid #1a1a1a;
+            }
+
+            .section {
+                margin-bottom: 1.5em;
+            }
+
+            strong, b {
+                font-weight: bold;
             }
         """
     else:
