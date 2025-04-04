@@ -18,6 +18,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Build the application with Tailwind CSS
+RUN npm install
 RUN npx tailwindcss init -p
 
 # Build the application
