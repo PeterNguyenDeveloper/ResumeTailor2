@@ -57,7 +57,7 @@ def tailor_resume_endpoint():
         try:
             resume_text = extract_text_from_pdf(temp_path)
             api_key = os.environ.get("GEMINI_API_KEY")
-            tailored_content = tailor_resume(resume_text, job_description,api_key)
+            tailored_content = tailor_resume(resume_text, job_description,api_key, template)
             pdf_filename = generate_pdf(tailored_content)
 
             response_data = {

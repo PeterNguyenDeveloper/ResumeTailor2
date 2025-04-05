@@ -17,7 +17,7 @@ def extract_text_from_pdf(pdf_path):
         raise Exception(f"Error extracting text from PDF: {str(e)}")
     return text
 
-def create_prompt(resume_text, job_description):
+def create_prompt(resume_text, job_description, template):
     """Create the prompt for Gemini AI."""
     prompt = (
         "I need you to tailor a resume for a specific job and output it in a well-structured HTML format "
@@ -26,6 +26,8 @@ def create_prompt(resume_text, job_description):
         f"Here is the original resume:\n{resume_text}\n\n"
 
         f"Here is the job description:\n{job_description}\n\n"
+
+        f"Style the resume in a {template} template.\n\n"
 
         "Please analyze the job description and modify the resume to highlight relevant skills and experiences.\n"
         "Focus on:\n"
@@ -63,16 +65,16 @@ def create_prompt(resume_text, job_description):
         "     <li>Skill 2</li>\n"
         "   </ul>\n"
         "9. DO NOT use any links, images, tables, or complex formatting\n"
-        "10. USE CSS STYLES, Make it colorful\n"
+        "10. No CSS Styles\n"
 
         "Return ONLY the HTML document, with no additional text, explanations, or markdown formatting."
     )
     return prompt
 
-def tailor_resume(resume_text, job_description, api_key):
+def tailor_resume(resume_text, job_description, api_key, template):
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = create_prompt(resume_text, job_description)
+    prompt = create_prompt(resume_text, job_description, template)
     response = model.generate_content(prompt)
     return clean_response(response.text)
 
