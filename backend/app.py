@@ -42,7 +42,7 @@ def tailor_resume_endpoint():
     try:
         if 'resume' not in request.files:
             return jsonify({'error': 'No resume file provided'}), 400
-        if 'job_description' not in request.files:
+        if 'job_description' not in request.form:
             return jsonify({'error': 'No job description provided'}), 400
 
         resume_file = request.files['resume']
