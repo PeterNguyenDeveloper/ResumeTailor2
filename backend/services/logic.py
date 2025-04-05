@@ -88,6 +88,6 @@ def generate_pdf(tailored_content):
     output_dir = 'generated_pdfs'
     os.makedirs(output_dir, exist_ok=True)
     output_pdf = f"{uuid.uuid4()}_resume.pdf"
-    with open(output_pdf, "wb") as pdf_file:
+    with open(os.path.join(output_dir, output_pdf), "wb") as pdf_file:
         pisa.CreatePDF( tailored_content, dest=pdf_file)
     return output_pdf
