@@ -1,14 +1,13 @@
 from flask import Flask, request, jsonify, make_response, send_from_directory
 from flask_cors import CORS
 import os
-import tempfile
 import uuid
 import json
 import traceback
 from werkzeug.utils import secure_filename
-from services.pdf_parser import extract_text_from_pdf
-from services.resume_tailor import tailor_resume
-from services.pdf_generator import generate_pdf
+from services.logic import extract_text_from_pdf
+from services.logic import tailor_resume
+from services.logic import generate_pdf
 
 app = Flask(__name__)
 
@@ -43,16 +42,12 @@ def tailor_resume_endpoint():
     try:
         if 'resume' not in request.files:
             return jsonify({'error': 'No resume file provided'}), 400
+        if 'job_description' not in request.files:
+            return jsonify({'error': 'No job description provided'}), 400
 
         resume_file = request.files['resume']
-        job_description = request.form.get('job_description', '')
+        job_description = request.form.get('job_description')
         template = request.form.get('template', 'professional')
-
-        if not resume_file or resume_file.filename == '':
-            return jsonify({'error': 'No resume file selected'}), 400
-
-        if not job_description:
-            return jsonify({'error': 'No job description provided'}), 400
 
         # Save the uploaded file temporarily
         filename = secure_filename(resume_file.filename)
@@ -60,53 +55,15 @@ def tailor_resume_endpoint():
         resume_file.save(temp_path)
 
         try:
-            # Extract text from PDF
             resume_text = extract_text_from_pdf(temp_path)
-
-            # Check Gemini API key
             api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                return jsonify({'error': 'GEMINI_API_KEY not configured'}), 500
-
-            # Tailor the resume using Gemini
-            try:
-                tailored_content = tailor_resume(resume_text, job_description)
-
-                # Save the HTML content for debugging
-                debug_html_path = os.path.join('generated_pdfs', f"debug_{uuid.uuid4()}.html")
-                with open(debug_html_path, 'w', encoding='utf-8') as f:
-                    f.write(tailored_content)
-
-            except Exception as gemini_error:
-                error_details = traceback.format_exc()
-                return jsonify({
-                    'error': f'Error with Gemini API: {str(gemini_error)}',
-                    'details': error_details
-                }), 500
-
-            # Generate PDF with the selected template
-            try:
-                pdf_path = generate_pdf(tailored_content, template)
-                pdf_filename = os.path.basename(pdf_path)
-
-                # Check if the PDF was actually created and has content
-                if not os.path.exists(pdf_path) or os.path.getsize(pdf_path) < 100:
-                    return jsonify({'error': 'Generated PDF is empty or invalid'}), 500
-
-            except Exception as pdf_error:
-                error_details = traceback.format_exc()
-                return jsonify({
-                    'error': f'Error generating PDF: {str(pdf_error)}',
-                    'details': error_details
-                }), 500
-
-            # Create a download URL for the PDF
-            pdf_url = f"/api/download/{pdf_filename}"
+            tailored_content = tailor_resume(resume_text, job_description,api_key)
+            pdf_filename = generate_pdf(tailored_content)
 
             response_data = {
                 'success': True,
                 'content': tailored_content,
-                'pdf_url': pdf_url,
+                'pdf_url': f"/api/download/{pdf_filename}",
                 'pdf_filename': pdf_filename
             }
             return jsonify(response_data)
@@ -132,9 +89,6 @@ def tailor_resume_endpoint():
 
 @app.route('/api/download/<filename>', methods=['GET', 'OPTIONS'])
 def download_file(filename):
-    """
-    Serve the generated PDF file for download.
-    """
     if request.method == 'OPTIONS':
         response = make_response()
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -165,10 +119,6 @@ def download_file(filename):
             'details': error_details
         }), 500
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'healthy', 'message': 'Flask backend is running'}), 200
-
 # Custom error handler for all exceptions
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -194,4 +144,3 @@ def method_not_allowed(e):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-
