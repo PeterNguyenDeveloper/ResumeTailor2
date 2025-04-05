@@ -38,7 +38,9 @@ def create_prompt(resume_text, job_description, template):
         "5. Maintain original formatting with bullets points\n"
         "6. Try to keep resulting HTML to one pdf page\n"
         "7. Try to have at least 15 words on each line\n"
-        "8. DO NOT ADD YOUR COMMENTS, TREAT AS FINAL DRAFT\n\n"
+        "8. Do not add the name of company in the job description to my work experience\n"
+        "9. Add metrics to the work experience\n"
+        "9. DO NOT ADD YOUR COMMENTS, TREAT AS FINAL DRAFT\n\n"
 
         "IMPORTANT: Return a well-structured HTML document that follows these specific guidelines:\n\n"
 

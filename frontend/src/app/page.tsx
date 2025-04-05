@@ -124,6 +124,7 @@ export default function Home() {
             </div>
             <div className="p-6">
               <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Upload Resume Area */}
                 <div className="space-y-2">
                   <label htmlFor="resume" className="block text-sm font-medium text-gray-700">
                     Resume (PDF)
@@ -154,7 +155,7 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-
+                {/* Job Description Area */}
                 <div className="space-y-2">
                   <label htmlFor="jobDescription" className="block text-sm font-medium text-gray-700">
                     Job Description
@@ -168,7 +169,7 @@ export default function Home() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
+                {/* Resume Template Area */}
                 <div className="space-y-2">
                   <label htmlFor="template" className="block text-sm font-medium text-gray-700">
                     Resume Template
