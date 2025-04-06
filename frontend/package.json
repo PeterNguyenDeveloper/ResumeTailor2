@@ -10,10 +10,14 @@
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.16",
+    "html2pdf.js": "^0.10.3",
     "lucide-react": "^0.487.0",
+    "markdown-it": "^14.1.0",
+    "marked": "^15.0.7",
     "next": "15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "showdown": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.2.5"
   },

@@ -1,91 +1,76 @@
-from flask import Flask, request, jsonify, make_response, send_from_directory
+from flask import Flask, request, jsonify, make_response, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
+import re
 import os
 import uuid
 import json
 import traceback
+import time
 from werkzeug.utils import secure_filename
 from services.logic import extract_text_from_pdf
 from services.logic import tailor_resume
 from services.logic import generate_pdf
+import google.generativeai as genai
 
 app = Flask(__name__)
 
-# Configure CORS to allow requests from any origin
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Allow only your frontend's origin to prevent issues
+CORS(app, origins=["http://137.184.12.12:3000"])
 
 # Create necessary folders
-UPLOAD_FOLDER = 'uploads'
-PDF_FOLDER = 'generated_pdfs'
+UPLOAD_FOLDER = 'uploaded_files'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(PDF_FOLDER, exist_ok=True)
 
-# Add CORS headers to all responses
-@app.after_request
-def add_cors_headers(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+#init genai
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Handle OPTIONS requests explicitly
-@app.route('/api/tailor-resume', methods=['OPTIONS'])
-def handle_options():
-    response = make_response()
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
+@app.route("/api/stream-tailor-resume", methods=["POST"])
+def stream_tailor_resume():
 
-@app.route('/api/tailor-resume', methods=['POST'])
-def tailor_resume_endpoint():
+    resume_file = request.files.get("resume")
+    job_description = request.form.get("job_description")
+    template = request.form.get("template")  # optional
+
+    if not resume_file or not job_description:
+        return "Missing resume or job description", 400
+
     try:
-        if 'resume' not in request.files:
-            return jsonify({'error': 'No resume file provided'}), 400
-        if 'job_description' not in request.form:
-            return jsonify({'error': 'No job description provided'}), 400
 
-        resume_file = request.files['resume']
-        job_description = request.form.get('job_description')
-        template = request.form.get('template', 'professional')
-
-        # Save the uploaded file temporarily
         filename = secure_filename(resume_file.filename)
         temp_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{filename}")
         resume_file.save(temp_path)
+        file_part = genai.upload_file(temp_path)
 
-        try:
-            resume_text = extract_text_from_pdf(temp_path)
-            api_key = os.environ.get("GEMINI_API_KEY")
-            tailored_content = tailor_resume(resume_text, job_description,api_key, template)
-            pdf_filename = generate_pdf(tailored_content)
+        prompt = (
+            "Respond in Markdown format. Output the finished resume. "
+            "Each line should be between 15 to 30 words. Don't omit anything from original resume. "
+            "Tailor the resume to the following Job Description: " + job_description
+        )
 
-            response_data = {
-                'success': True,
-                'content': tailored_content,
-                'pdf_url': f"/api/download/{pdf_filename}",
-                'pdf_filename': pdf_filename
-            }
-            return jsonify(response_data)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content([prompt, file_part], stream=True)
 
-        except Exception as e:
-            error_details = traceback.format_exc()
-            return jsonify({
-                'error': str(e),
-                'details': error_details
-            }), 500
+        def generate():
+            for chunk in response:
+                if chunk.text:
+                    word = ""
+                    for char in chunk.text:  # Process each character in the text
+                        if char.isspace():  # If the character is a whitespace (space, tab, newline)
+                            if word:  # If there's a word accumulated, yield it first
+                                yield word
+                                time.sleep(0.01)  # Optional delay for smoother stream
+                                word = ""  # Reset the word accumulator
+                            yield char  # Yield the whitespace character
+                        else:
+                            word += char  # Accumulate characters into a word
+                    if word:  # Yield any remaining word after processing all characters
+                        yield word
+                        time.sleep(0.01)  # Optional delay for smoother stream
 
-        finally:
-            # Clean up the temporary file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-    except Exception as outer_e:
-        error_details = traceback.format_exc()
-        return jsonify({
-            'error': f'Unexpected error: {str(outer_e)}',
-            'details': error_details
-        }), 500
+        return Response(stream_with_context(generate()), mimetype="text/plain")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 @app.route('/api/download/<filename>', methods=['GET', 'OPTIONS'])
 def download_file(filename):
